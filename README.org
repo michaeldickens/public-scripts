@@ -1,0 +1,8 @@
+This repository includes scripts too small for their own repos.
+
+* Happiness
+
+** Data sources
+
+*** country-happiness.csv: World Happiness Report
+https://worldhappiness.report/ed/2020/
