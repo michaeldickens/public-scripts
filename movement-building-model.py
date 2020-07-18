@@ -51,14 +51,17 @@ def spend_prop(starting_longtermists, starting_susceptible, starting_money, t, p
     susceptible = starting_susceptible
 
     for i in range(t):
-        # growth in money
-        money = (money + salary * (1 - prop_spending)) * market_rate
+        money += salary
 
         # growth in number of longtermists
         new_longtermists = min(money * prop_spending / dollars_to_convert, susceptible)
         longtermists += new_longtermists
         susceptible -= new_longtermists
         susceptible += longtermists * susceptible_per_longtermist_per_year
+        money -= new_longtermists * dollars_to_convert
+
+        # growth in money
+        money *= market_rate
 
     return longtermists, susceptible, money
 
