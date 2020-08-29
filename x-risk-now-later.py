@@ -10,7 +10,7 @@ Created: 2020-07-19
 
 from typing import Callable
 
-from scipy import optimize
+from scipy import integrate, optimize, stats
 import sympy
 
 
@@ -23,7 +23,8 @@ def compare(pair):
     if x == y:
         print("{} = {}".format(x, y))
     else:
-        print("{} {} {} {} (ratio {})".format(x, "<" if x < y else ">", y, "Later" if x < y else "Now", x / y))
+        print("{} {} {} {} (relative difference {})".format(
+            x, "<" if x < y else ">", y, "Later" if x < y else "Now", abs(x - y) / x))
 
 
 def permanent_reduction_binary(
@@ -41,6 +42,9 @@ def permanent_reduction_binary(
 
     After the first `periods_til_later` periods, there will be
     `exogenous_spending` spending on x-risk.
+
+    Doubling cost is normalized to 1. Budget and exogenous spending should be
+    put relative to doubling cost.
 
     period_utility(t): utility at time t
     convergence_value(x_risk): convergence point of
@@ -67,6 +71,20 @@ def permanent_reduction_binary(
         + ((1 - initial_x_risk)**periods_til_later
            * convergence_value(updated_x_risk(initial_x_risk, spending_later + exogenous_spending)))
     )
+
+    print("now {} + {}, later {} + {}".format(
+        sum([(1 - x_risk_now)**t * period_utility(t) for t in range(periods_til_later)]),
+        ((1 - x_risk_now)**periods_til_later
+         * convergence_value(updated_x_risk(initial_x_risk, spending_now + exogenous_spending))),
+
+        # from now til later, discount at the initial rate
+        sum([(1 - initial_x_risk)**t * period_utility(t) for t in range(periods_til_later)]),
+
+        # from later til forever, discount at the reduced rate
+        ((1 - initial_x_risk)**periods_til_later
+           * convergence_value(updated_x_risk(initial_x_risk, spending_later + exogenous_spending)))
+
+    ))
 
     return (utility_now, utility_later)
 
@@ -161,30 +179,6 @@ def temporary_reduction_binary(
            * convergence_value(long_term_x_risk))
     )
 
-    print("now1 {}, now2 {} | now-later {}, later-2x {}, 2x-forever {}".format(
-        # from now til later
-        sum([(1 - x_risk_now)**t * period_utility(t) for t in range(periods_til_later)]),
-
-        # from later til forever
-        (1 - x_risk_now)**periods_til_later * convergence_value(long_term_x_risk),
-
-
-        # from now til later
-        sum([(1 - initial_x_risk)**t * period_utility(t) for t in range(periods_til_later)]),
-
-        # from later til 2*later
-        ((1 - initial_x_risk)**periods_til_later
-           * sum([(1 - x_risk_later)**t * period_utility(periods_til_later + t)
-                  for t in range(periods_til_later)])),
-
-        # from 2*later til forever
-        ((1 - initial_x_risk)**periods_til_later
-           * (1 - x_risk_later)**periods_til_later
-           * convergence_value(long_term_x_risk))
-    ))
-
-    print(utility_now - utility_later)
-
     return (utility_now, utility_later)
 
 
@@ -232,51 +226,268 @@ def temporary_reduction_continuous(
     return opt.x[0], total_utility(opt.x[0])
 
 
-def breakeven_interest_rate(budget=1, exogenous_spending=0):
+def permanent_reduction_with_movement_growth_binary_finite(
+        period_utility: Callable[[float], float],
+        convergence_value: Callable[[float], float],
+        initial_x_risk: float,
+        movement_growth_rate: float,
+        interest_rate: float,
+        periods_til_later=100,
+        budget=1,
+):
+    '''
+    Calculate the utility of spending now vs. later on reducing x-risk where
+    spending permanently reduces x-risk, and where spending now results in
+    increasing spending in future periods due to movement growth.
+
+    Specifically, every $1 spent now will cause additional spending to occur
+    in the future such that at time t, `(1 + movement_growth_rate)^t` total
+    spending has occurred. Spending stops after `periods_til_later` periods
+    have passed.
+
+    Doubling cost is normalized to 1. Budget and exogenous spending should be
+    put relative to doubling cost.
+
+    period_utility(t): utility at time t
+    convergence_value(x_risk): convergence point of
+    `sum([(1 - x_risk)**t * period_utility(t) for t in range(infinity)])`
+
+    return: (utility of spending now, utility of spending later)
+    '''
+
+    spending_now = budget
+    spending_later = spending_now * (1 + interest_rate)**periods_til_later
+    x_risk_now = updated_x_risk(initial_x_risk, spending_now)
+
+    utility_now = 0
+    discount_factor = 1
+    for t in range(periods_til_later):
+        utility_now += discount_factor * period_utility(t)
+        discount_factor *= 1 - updated_x_risk(initial_x_risk, spending_now * (1 + movement_growth_rate)**t)
+    utility_now_100 = utility_now
+    utility_now += (
+        discount_factor
+        * convergence_value(updated_x_risk(
+            initial_x_risk, spending_now * (1 + movement_growth_rate)**periods_til_later))
+    )
+
+    utility_later = 0
+    discount_factor = 1
+    for t in range(periods_til_later):
+        utility_later += discount_factor * period_utility(t)
+        discount_factor *= 1 - initial_x_risk
+    utility_later_100 = utility_later
+    for t in range(periods_til_later):
+        utility_later += discount_factor * period_utility(periods_til_later + t)
+        discount_factor *= 1 - updated_x_risk(initial_x_risk, spending_later * (1 + movement_growth_rate)**t)
+    utility_later_200 = utility_later
+    utility_later += (
+        discount_factor
+        * convergence_value(updated_x_risk(
+            initial_x_risk, spending_later * (1 + movement_growth_rate)**(periods_til_later)))
+    )
+    print("{:.2f}%:\n\tspending now {}, spending later {}\n\t{}: now 100 {}, now forever {}\n\t{}: later 100 {}, later 200 {}, later forever {}".format(
+        interest_rate * 100,
+        spending_now, spending_later,
+        utility_now, utility_now_100, utility_now - utility_later_100,
+        utility_later, utility_later_100, utility_later_200 - utility_later_100, utility_later - utility_later_200
+    ))
+
+    return (utility_now, utility_later)
+
+
+def permanent_reduction_with_movement_growth_binary(
+        period_utility: Callable[[float], float],
+        convergence_value: Callable[[float], float],
+        initial_x_risk: float,
+        movement_growth_rate: float,
+        interest_rate: float,
+        periods_til_later=100,
+        budget=1,
+):
+    '''
+    Calculate the utility of spending now vs. later on reducing x-risk where
+    spending permanently reduces x-risk, and where spending now results in
+    increasing spending in future periods due to movement growth.
+
+    Specifically, every $1 spent now will cause additional spending to occur
+    in the future such that at time t, `(1 + movement_growth_rate)^t` total
+    spending has occurred. Spending continues occurring indefinitely.
+
+    This function simulates indefinite expenditures by calculating over a
+    long but finite time horizon. This could give inaccurate results when
+    x-risk is very small.
+
+    Doubling cost is normalized to 1. Budget and exogenous spending should be
+    put relative to doubling cost.
+
+    period_utility(t): utility at time t
+    convergence_value(x_risk): convergence point of
+    `sum([(1 - x_risk)**t * period_utility(t) for t in range(infinity)])`
+
+    return: (utility of spending now, utility of spending later)
+    '''
+
+    spending_now = budget
+    spending_later = spending_now * (1 + interest_rate)**periods_til_later
+    x_risk_now = updated_x_risk(initial_x_risk, spending_now)
+    very_long_time = 10000
+
+    utility_now = 0
+    discount_factor = 1
+    for t in range(very_long_time):
+        utility_now += discount_factor * period_utility(t)
+        discount_factor *= 1 - updated_x_risk(initial_x_risk, spending_now * (1 + movement_growth_rate)**t)
+
+    utility_later = 0
+    discount_factor = 1
+    for t in range(periods_til_later):
+        utility_later += discount_factor * period_utility(t)
+        discount_factor *= 1 - initial_x_risk
+    for t in range(very_long_time - periods_til_later):
+        utility_later += discount_factor * period_utility(periods_til_later + t)
+        discount_factor *= 1 - updated_x_risk(initial_x_risk, spending_later * (1 + movement_growth_rate)**t)
+
+    return (utility_now, utility_later)
+
+def permanent_reduction_binary_with_extra_exogenous_spending(
+        period_utility: Callable[[float], float],
+        convergence_value: Callable[[float], float],
+        initial_x_risk: float,
+        exogenous_spending: float,
+        interest_rate: float,
+        periods_til_later=100,
+        extra_exogenous_spending: float,
+        extra_periods=100,
+        budget=1,
+) -> (float, float):
+    '''
+    Calculate the utility of spending now vs. later on reducing x-risk where
+    spending permanently reduces x-risk.
+
+    After the first `periods_til_later` periods, there will be
+    `exogenous_spending` spending on x-risk.
+
+    Doubling cost is normalized to 1. Budget and exogenous spending should be
+    put relative to doubling cost.
+
+    period_utility(t): utility at time t
+    convergence_value(x_risk): convergence point of
+    `sum([(1 - x_risk)**t * period_utility(t) for t in range(infinity)])`
+
+    return: (utility of spending now, utility of spending later)
+    '''
+
+    spending_now = budget
+    spending_later = spending_now * (1 + interest_rate)**periods_til_later
+    x_risk_now = updated_x_risk(initial_x_risk, spending_now)
+
+
+    utility_now = (
+        sum([(1 - x_risk_now)**t * period_utility(t) for t in range(periods_til_later)])
+
+        + ((1 - x_risk_now)**periods_til_later
+           * sum([(1 - updated_x_risk(initial_x_risk, spending_now + exogenous_spending))**t * period_utility(t)
+                  for t in range(extra_periods)])
+        )
+
+        + ((1 - x_risk_now)**periods_til_later
+           * (1 - updated_x_risk(initial_x_risk, spending_now + exogenous_spending))**(extra_periods)
+           * convergence_value(updated_x_risk(initial_x_risk, spending_now + extra_exogenous_spending)))
+    )
+
+    utility_later = (
+        # from now til later, discount at the initial rate
+        sum([(1 - initial_x_risk)**t * period_utility(t) for t in range(periods_til_later)])
+
+        + ((1 - initial_x_risk)**periods_til_later
+           * sum([(1 - updated_x_risk(initial_x_risk, spending_later + exogenous_spending))**t * period_utility(t)
+                  for t in range(extra_periods)])
+           )
+
+        # from later til forever, discount at the reduced rate
+        + ((1 - initial_x_risk)**periods_til_later
+           * (1 - updated_x_risk(initial_x_risk, spending_later + exogenous_spending))**(extra_periods)
+           * convergence_value(updated_x_risk(initial_x_risk, spending_later + extra_exogenous_spending)))
+    )
+
+    print("now {} + {}, later {} + {}".format(
+        sum([(1 - x_risk_now)**t * period_utility(t) for t in range(periods_til_later)]),
+
+        ((1 - x_risk_now)**periods_til_later
+           * (1 - updated_x_risk(initial_x_risk, spending_now + exogenous_spending))**(extra_periods)
+           * convergence_value(updated_x_risk(initial_x_risk, spending_now + extra_exogenous_spending))),
+        # ((1 - x_risk_now)**periods_til_later
+        #  * convergence_value(updated_x_risk(initial_x_risk, spending_now + exogenous_spending))),
+
+        # from now til later, discount at the initial rate
+        sum([(1 - initial_x_risk)**t * period_utility(t) for t in range(periods_til_later)]),
+
+        # from later til forever, discount at the reduced rate
+        ((1 - initial_x_risk)**periods_til_later
+           * (1 - updated_x_risk(initial_x_risk, spending_later + exogenous_spending))**(extra_periods)
+           * convergence_value(updated_x_risk(initial_x_risk, spending_later + extra_exogenous_spending)))
+
+        # ((1 - initial_x_risk)**periods_til_later
+        #    * convergence_value(updated_x_risk(initial_x_risk, spending_later + exogenous_spending)))
+
+    ))
+
+    return (utility_now, utility_later)
+
+
+def breakeven_interest_rate(initial_x_risk=0.002, budget=1, exogenous_spending=None, movement_growth_rate=None):
+    '''
+    Calculate the interest rate at which an actor is indifferent between giving
+    now or giving later, using a model defined by one of the functions above.
+    '''
+
+    # Customize these bits
     period_utility = lambda t: 1
     convergence_value = lambda x_risk: 1 / x_risk
-    initial_x_risk = 0.002
     f = temporary_reduction_binary
-    def func(interest_rate):
-        now, later = f(period_utility, convergence_value, initial_x_risk, exogenous_spending, interest_rate, budget=budget)
-        return (now - later)**2
+
+    # Do not change anything below this line
+    assert((exogenous_spending is None and movement_growth_rate is not None) or
+           (exogenous_spending is not None and movement_growth_rate is None))
+    if exogenous_spending is not None:
+        def func(interest_rate):
+            now, later = f(
+                period_utility, convergence_value, initial_x_risk, exogenous_spending=exogenous_spending,
+                interest_rate=interest_rate[0], budget=budget)
+            return (now - later)**2
+    elif movement_growth_rate is not None:
+        def func(interest_rate):
+            now, later = f(
+                period_utility, convergence_value, initial_x_risk, movement_growth_rate=movement_growth_rate,
+                interest_rate=interest_rate[0], budget=budget)
+            return (now - later)**2
 
     # for some reason this gives the wrong answer for some initial guesses, but
     # gets it right if the initial guess is close enough to 0. maybe step sizes
     # are too big?
     opt = optimize.minimize(func, [0.001])
-    res = f(period_utility, convergence_value, initial_x_risk, exogenous_spending, opt.x[0], budget=budget)
-    print("Breakeven rate {} gives utility {} (diff {:.0e})".format(opt.x[0], res, (res[0] - res[1])/res[0]))
-    # print(f(consumption, convergence_value, initial_x_risk, exogenous_spending, initial_x_risk / (1 - initial_x_risk), budget=budget))
+    res = f(period_utility, convergence_value, initial_x_risk, exogenous_spending if exogenous_spending is not None else movement_growth_rate, opt.x[0], budget=budget)
+    print("Breakeven rate {:.3f}% gives utility {} (relative difference {:.0e})".format(100 * opt.x[0], res, (res[0] - res[1])/res[0]))
 
 
-# constant utility
-# compare(permanent_reduction_binary(lambda t: 1, lambda x_risk: 1 / x_risk, 0.001, 0, 0.02))
+def expected_utility_of_investment(mu, sigma, initial_x_risk=0.002, budget=0.01, periods_til_later=1):
+    '''
+    Calculate the expected utility of an investment under the
+    temporary-reduction model, where x-risk reduction only lasts for a single
+    period.
 
-# linear utility (exponentially-increasing consumption with logarithmic utility of consumption)
-#compare(permanent_reduction_binary(lambda t: t, lambda x_risk: (1 - x_risk) / x_risk**2, 0.001, 500, 0.02))
+    mu and sigma are the parameters of the logarithm of the investment return
+    minus the risk-free rate.
+    '''
+    return integrate.quad(
+        lambda r: (
+            (1 - initial_x_risk / (1 + budget*(1 + r)**periods_til_later))
+            * stats.norm.pdf(r, mu, sigma)
+        ),
+        # < -100% returns are well-defined because they result in increasing x-risk
+        -100, 100
+    )[0]
 
-# print(temporary_reduction_binary(lambda t: 1, lambda x_risk: 1 / x_risk, 0.001, 100, 0.02))
 
-# compare(permanent_reduction_with_exogenous_spending(lambda t: 1, lambda x_risk: 1 / x_risk, 0.001, 100, 0.02))
-
-# print(temporary_reduction_continuous(lambda t: 1, lambda x_risk: 1 / x_risk, 0.001, 100, 0.02, budget=500))
-
-# breakeven_interest_rate(budget=0.01, exogenous_spending=0)
-# breakeven_interest_rate(budget=0.01, exogenous_spending=0.01)
-# breakeven_interest_rate(budget=0.01, exogenous_spending=0.1)
-# breakeven_interest_rate(budget=0.01, exogenous_spending=1)
-# breakeven_interest_rate(budget=0.01, exogenous_spending=10)
-# breakeven_interest_rate(budget=0.01, exogenous_spending=100)
-
-# breakeven_interest_rate(budget=100, exogenous_spending=0)
-# breakeven_interest_rate(budget=100, exogenous_spending=100)
-# breakeven_interest_rate(budget=100, exogenous_spending=1000)
-# breakeven_interest_rate(budget=100, exogenous_spending=10000)
-# breakeven_interest_rate(budget=100, exogenous_spending=100000)
-# breakeven_interest_rate(budget=100, exogenous_spending=1000000)
-
-temporary_reduction_binary(lambda t: 1, lambda x_risk: 1 / x_risk, initial_x_risk=0.001, exogenous_spending=0, interest_rate=0.03, budget=1)
-temporary_reduction_binary(lambda t: 1, lambda x_risk: 1 / x_risk, initial_x_risk=0.001, exogenous_spending=0, interest_rate=0.03, budget=0.1)
-temporary_reduction_binary(lambda t: 1, lambda x_risk: 1 / x_risk, initial_x_risk=0.001, exogenous_spending=0, interest_rate=0.03, budget=0.01)
-temporary_reduction_binary(lambda t: 1, lambda x_risk: 1 / x_risk, initial_x_risk=0.001, exogenous_spending=0, interest_rate=0.03, budget=0.001)
+breakeven_interest_rate(exogenous_spending=0)

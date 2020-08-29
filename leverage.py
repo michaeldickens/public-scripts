@@ -98,11 +98,11 @@ class UtilityLeverage:
     rf = 0.00  # TODO: not currently used
     rra = 2.0
 
-    mu = 0.08
+    mu = 0.07
     sigma = 0.13
     market_sigma = 0.156
 
-    def __init__(self, rra=None, mu=None, sigma=None, market_sigma=None):
+    def __init__(self,  rra=None, mu=None, sigma=None, market_sigma=None):
         if rra is not None:
             self.rra = rra
         if mu is not None:
@@ -137,7 +137,7 @@ class UtilityLeverage:
                 util = starting_capital**(1 - self.rra) * np.exp(inner * (1 - self.rra)) / (1 - self.rra)
             return util * stats.norm.pdf(w, 0, 1)
 
-        return integrate.quad(integrand, -20, 20)[0]
+        return integrate.quad(integrand, -10, 10)[0]
 
     def expected_utility_old(self, leverage):
         # my old version that's off by one. tbd why
@@ -218,6 +218,23 @@ def samuelson_share(expected_return, stdev, eta=1):
     return samuelson_share, expected_return * samuelson_share * 100
 
 
+def optimal_allocation(asset1_mean, asset1_stdev, asset2_mean, asset2_stdev, correlation, eta=1):
+    # maximize Sharpe ratio
+    def sharpe(asset1_prop):
+        asset2_prop = 1 - asset1_prop
+        joint_mean = asset1_mean * asset1_prop + asset2_mean * asset2_prop
+        joint_stdev = np.sqrt(
+            (asset1_stdev * asset1_prop)**2
+            + (asset2_stdev * asset2_prop)**2
+            + 2 * correlation * asset1_stdev * asset1_prop * asset2_stdev * asset2_prop
+        )
+
+        return joint_mean / joint_stdev
+
+    opt = optimize.minimize_scalar(lambda asset1_prop: -sharpe(asset1_prop), bracket = [-1, 2])
+    print(opt.x)
+
+
 class TestUtilityLeverage(TestCase):
     def test_risk_free_return_for_utility_finds_fixed_point(self):
         for rra in [0.5, 1.0, 2.0]:
@@ -240,41 +257,3 @@ class TestUtilityLeverage(TestCase):
                 n_year_utility = obj.expected_utility_after_n_years(
                     num_years=1, pure_time_preference=0)
                 self.assertAlmostEqual(one_year_utility, n_year_utility)
-
-
-# TODO: these are wrong b/c they don't account for the fact the growth rate is volatile.
-# 2020-05-11
-
-# TODO: wrong because discount rate goes outside the utility function. but I'm
-# confused b/c u(1) = 0 and applying any discount makes it still 0.
-# we want the value of r such that u(c*e^r)*e^-delta = u(c) for any value of c
-
-# # typical investor
-# obj = UtilityLeverage(rra=2.0, mu=0.03, sigma=0.13)
-# print(obj.risk_free_return_for_utility(obj.expected_utility(leverage=1)))
-
-# # altruist with same portfolio
-# obj = UtilityLeverage(rra=1.0, mu=0.03, sigma=0.13)
-# print(obj.risk_free_return_for_utility(obj.expected_utility(leverage=1)))
-
-# # altruist with better portfolio
-# obj = UtilityLeverage(rra=1.0, mu=0.04, sigma=0.12)
-# print(obj.risk_free_return_for_utility(obj.expected_utility(leverage=1)))
-
-# # altruist with better portfolio, optimally leveraged
-# obj = UtilityLeverage(rra=1.0, mu=0.04, sigma=0.12)
-# print(obj.equivalent_risk_free_return())
-
-# for i in range(100):
-#     obj = UtilityLeverage(rra=1.0, mu=i/1000.0, sigma=0.12)
-#     print("{}\t".format(obj.equivalent_risk_free_return()['risk-free'],)
-
-# obj = UtilityLeverage(rra=1.5, mu=0.03, sigma=0.13)
-# print(obj.optimal_consumption_rate(discount_rate=0.02, leverage=obj.optimal_leverage().x))
-
-
-# print(samuelson_share(0.016, 0.04))
-print(samuelson_share(0.045, 0.12))
-print(samuelson_share(0.09, 0.13))
-print(samuelson_share(0.04, 0.11))
-print(samuelson_share(0.07, 0.10))
