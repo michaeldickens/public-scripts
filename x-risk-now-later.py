@@ -362,20 +362,12 @@ def permanent_reduction_binary_with_extra_exogenous_spending(
         budget=1,
 ) -> (float, float):
     '''
-    Calculate the utility of spending now vs. later on reducing x-risk where
-    spending permanently reduces x-risk.
+    After the first round of exogenous spending, a second round of
+    `extra_exogenous_spending` spending occurs after an additional
+    `extra_periods` periods.
 
-    After the first `periods_til_later` periods, there will be
-    `exogenous_spending` spending on x-risk.
-
-    Doubling cost is normalized to 1. Budget and exogenous spending should be
-    put relative to doubling cost.
-
-    period_utility(t): utility at time t
-    convergence_value(x_risk): convergence point of
-    `sum([(1 - x_risk)**t * period_utility(t) for t in range(infinity)])`
-
-    return: (utility of spending now, utility of spending later)
+    Note: I wrote this kind of quickly and haven't checked it, so
+    the implementation could be wrong.
     '''
 
     spending_now = budget
