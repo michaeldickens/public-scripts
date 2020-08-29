@@ -384,8 +384,8 @@ def permanent_reduction_binary_with_extra_exogenous_spending(
         )
 
         + ((1 - x_risk_now)**periods_til_later
-           * (1 - updated_x_risk(initial_x_risk, spending_now + exogenous_spending))**(extra_periods)
-           * convergence_value(updated_x_risk(initial_x_risk, spending_now + extra_exogenous_spending)))
+           * (1 - updated_x_risk(initial_x_risk, spending_now + exogenous_spending))**extra_periods
+           * convergence_value(updated_x_risk(initial_x_risk, spending_now + exogenous_spending + extra_exogenous_spending)))
     )
 
     utility_later = (
@@ -399,31 +399,9 @@ def permanent_reduction_binary_with_extra_exogenous_spending(
 
         # from later til forever, discount at the reduced rate
         + ((1 - initial_x_risk)**periods_til_later
-           * (1 - updated_x_risk(initial_x_risk, spending_later + exogenous_spending))**(extra_periods)
-           * convergence_value(updated_x_risk(initial_x_risk, spending_later + extra_exogenous_spending)))
+           * (1 - updated_x_risk(initial_x_risk, spending_later + exogenous_spending))**extra_periods
+           * convergence_value(updated_x_risk(initial_x_risk, spending_later + exogenous_spending + extra_exogenous_spending)))
     )
-
-    print("now {} + {}, later {} + {}".format(
-        sum([(1 - x_risk_now)**t * period_utility(t) for t in range(periods_til_later)]),
-
-        ((1 - x_risk_now)**periods_til_later
-           * (1 - updated_x_risk(initial_x_risk, spending_now + exogenous_spending))**(extra_periods)
-           * convergence_value(updated_x_risk(initial_x_risk, spending_now + extra_exogenous_spending))),
-        # ((1 - x_risk_now)**periods_til_later
-        #  * convergence_value(updated_x_risk(initial_x_risk, spending_now + exogenous_spending))),
-
-        # from now til later, discount at the initial rate
-        sum([(1 - initial_x_risk)**t * period_utility(t) for t in range(periods_til_later)]),
-
-        # from later til forever, discount at the reduced rate
-        ((1 - initial_x_risk)**periods_til_later
-           * (1 - updated_x_risk(initial_x_risk, spending_later + exogenous_spending))**(extra_periods)
-           * convergence_value(updated_x_risk(initial_x_risk, spending_later + extra_exogenous_spending)))
-
-        # ((1 - initial_x_risk)**periods_til_later
-        #    * convergence_value(updated_x_risk(initial_x_risk, spending_later + exogenous_spending)))
-
-    ))
 
     return (utility_now, utility_later)
 
