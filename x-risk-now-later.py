@@ -126,6 +126,7 @@ def permanent_reduction_continuous(
     opt = optimize.minimize(lambda x: -total_utility(x), [budget/2], constraints=[bounds_constraint])
     print("0: {}".format(total_utility(0)))
     print("{}: {}".format(budget, total_utility(budget)))
+    print("{}: {}".format(opt.x[0], total_utility(opt.x[0])))
     return opt.x[0], total_utility(opt.x[0])
 
 
@@ -357,7 +358,7 @@ def permanent_reduction_binary_with_extra_exogenous_spending(
         exogenous_spending: float,
         interest_rate: float,
         periods_til_later=100,
-        extra_exogenous_spending: float,
+        extra_exogenous_spending=0,
         extra_periods=100,
         budget=1,
 ) -> (float, float):
@@ -406,7 +407,44 @@ def permanent_reduction_binary_with_extra_exogenous_spending(
     return (utility_now, utility_later)
 
 
-def breakeven_interest_rate(initial_x_risk=0.002, budget=1, exogenous_spending=None, movement_growth_rate=None):
+def permanent_reduction_binary_with_exogenous_target(
+        period_utility: Callable[[float], float],
+        convergence_value: Callable[[float], float],
+        initial_x_risk: float,
+        exogenous_spending_target: float,
+        interest_rate: float,
+        periods_til_later=100,
+        budget=1,
+):
+    '''
+    After `periods_til_later` periods, society will spend enough such that total spending equals
+    `exogenous_spending_target`. If you spend more, society will spend less.
+    '''
+
+    spending_now = budget
+    spending_later = spending_now * (1 + interest_rate)**periods_til_later
+    x_risk_now = updated_x_risk(initial_x_risk, spending_now)
+
+    utility_now = (
+        sum([(1 - x_risk_now)**t * period_utility(t) for t in range(periods_til_later)])
+        + ((1 - x_risk_now)**periods_til_later
+           * convergence_value(updated_x_risk(initial_x_risk, max(spending_now, exogenous_spending_target))))
+    )
+
+    utility_later = (
+        # from now til later, discount at the initial rate
+        sum([(1 - initial_x_risk)**t * period_utility(t) for t in range(periods_til_later)])
+
+        # from later til forever, discount at the reduced rate
+        + ((1 - initial_x_risk)**periods_til_later
+           * convergence_value(updated_x_risk(initial_x_risk, exogenous_spending_target + spending_later)))
+    )
+
+    return (utility_now, utility_later)
+
+
+def breakeven_interest_rate(initial_x_risk=0.002, budget=1, exogenous_spending=None, movement_growth_rate=None,
+                            exogenous_spending_target=None):
     '''
     Calculate the interest rate at which an actor is indifferent between giving
     now or giving later, using a model defined by one of the functions above.
@@ -415,29 +453,33 @@ def breakeven_interest_rate(initial_x_risk=0.002, budget=1, exogenous_spending=N
     # Customize these bits
     period_utility = lambda t: 1
     convergence_value = lambda x_risk: 1 / x_risk
-    f = temporary_reduction_binary
+    f = permanent_reduction_binary_with_exogenous_target
 
     # Do not change anything below this line
-    assert((exogenous_spending is None and movement_growth_rate is not None) or
-           (exogenous_spending is not None and movement_growth_rate is None))
+    assert(
+        (exogenous_spending is None and movement_growth_rate is None and exogenous_spending_target is not None) or
+        (exogenous_spending is None and movement_growth_rate is not None and exogenous_spending_target is None) or
+        (exogenous_spending is not None and movement_growth_rate is None and exogenous_spending_target is None)
+    )
+
     if exogenous_spending is not None:
-        def func(interest_rate):
-            now, later = f(
-                period_utility, convergence_value, initial_x_risk, exogenous_spending=exogenous_spending,
-                interest_rate=interest_rate[0], budget=budget)
-            return (now - later)**2
+        custom_param = exogenous_spending
     elif movement_growth_rate is not None:
-        def func(interest_rate):
-            now, later = f(
-                period_utility, convergence_value, initial_x_risk, movement_growth_rate=movement_growth_rate,
-                interest_rate=interest_rate[0], budget=budget)
-            return (now - later)**2
+        custom_param = movement_growth_rate
+    elif exogenous_spending_target is not None:
+        custom_param = exogenous_spending_target
+
+    def func(interest_rate):
+        now, later = f(
+            period_utility, convergence_value, initial_x_risk, custom_param,
+            interest_rate=interest_rate[0], budget=budget)
+        return (now - later)**2
 
     # for some reason this gives the wrong answer for some initial guesses, but
     # gets it right if the initial guess is close enough to 0. maybe step sizes
     # are too big?
     opt = optimize.minimize(func, [0.001])
-    res = f(period_utility, convergence_value, initial_x_risk, exogenous_spending if exogenous_spending is not None else movement_growth_rate, opt.x[0], budget=budget)
+    res = f(period_utility, convergence_value, initial_x_risk, custom_param, opt.x[0], budget=budget)
     print("Breakeven rate {:.3f}% gives utility {} (relative difference {:.0e})".format(100 * opt.x[0], res, (res[0] - res[1])/res[0]))
 
 
@@ -460,4 +502,4 @@ def expected_utility_of_investment(mu, sigma, initial_x_risk=0.002, budget=0.01,
     )[0]
 
 
-breakeven_interest_rate(exogenous_spending=0)
+breakeven_interest_rate(budget=1, exogenous_spending_target=100)

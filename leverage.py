@@ -1,5 +1,6 @@
 import random
 from functools import reduce
+from pprint import pprint
 from unittest import TestCase
 
 import numpy as np
@@ -95,7 +96,7 @@ class Environment:
 
 
 class UtilityLeverage:
-    rf = 0.00  # TODO: not currently used
+    rf = 0.00  # not currently used
     rra = 2.0
 
     mu = 0.07
@@ -120,6 +121,18 @@ class UtilityLeverage:
     def expected_utility(self, leverage, starting_capital=1):
         # mean and standard deviation of a normal random variable scale linearly
         # when multiplied by a constant
+        sigma = starting_capital * leverage * self.sigma
+        mu = starting_capital * leverage * self.mu - sigma**2/2
+
+        # Formula taken from slide 12 of
+        # http://web.stanford.edu/class/cme241/lecture_slides/UtilityTheoryForRisk.pdf
+        if self.rra == 1:
+            return mu
+        return (np.exp(mu*(1 - self.rra) + sigma**2/2 * (1 - self.rra)**2) - 1) / (1 - self.rra)
+
+    def expected_utility_old(self, leverage, starting_capital=1):
+        # mean and standard deviation of a normal random variable scale linearly
+        # when multiplied by a constant
         mu = self.mu * leverage
         sigma = self.sigma * leverage
 
@@ -139,19 +152,6 @@ class UtilityLeverage:
 
         return integrate.quad(integrand, -10, 10)[0]
 
-    def expected_utility_old(self, leverage):
-        # my old version that's off by one. tbd why
-        return integrate.quad(
-            # lambda r: self.utility(np.exp(r * leverage)) * stats.norm.pdf(r, self.mu, self.sigma),
-
-            # `self.utility()` is inclined here to prevent float overflow
-            lambda r: (
-                (r * leverage if self.rra == 1 else np.exp((r * leverage - self.sigma**2*leverage**2/2) * (1 - self.rra)) / (1 - self.rra))
-                * stats.norm.pdf(r, self.mu, self.sigma)
-            ),
-            -1, 100
-        )[0]
-
     def optimal_leverage(self):
         return optimize.minimize_scalar(
             lambda leverage: -self.expected_utility(leverage),
@@ -168,13 +168,15 @@ class UtilityLeverage:
             return u
         return np.log((u * (1 - self.rra))**(1/(1 - self.rra)))
 
-    def equivalent_risk_free_return(self):
+    def certainty_equivalent_return(self):
         '''
         Find the risk-free return that has the same utility as the
         optimally-leveraged distribution given by mu and sigma.
 
-        Note: Apparently, in the literature this is called a
-        "certainty equivalent."
+        Alternatively, use the formula from slide 12 of
+        http://web.stanford.edu/class/cme241/lecture_slides/UtilityTheoryForRisk.pdf
+          (exp(mu(1 + eta) + sigma^2/2 * (1 - eta)^2) - 1) / (1 - eta) | eta != 1
+          mu | eta == 1
         '''
         leverage_result = self.optimal_leverage()
         optimal_leverage = leverage_result.x
@@ -202,20 +204,8 @@ class UtilityLeverage:
 
         return discount_rate**(1/rra) * np.exp((mu + sigma**2/2)*(1 - rra)/rra - (1 - rra)*sigma**2/2)
 
-
-def samuelson_share(expected_return, stdev, eta=1):
-    mu = np.log(1 + expected_return)
-
-    opt = optimize.minimize_scalar(
-        # whole things is squared so the minimum is at 0 instead of negative
-        lambda sigma: (((np.exp(sigma**2) - 1) * np.exp(2*mu + sigma**2)) - stdev**2)**2,
-        bracket=[0.0000, 0.1, 10],
-    )
-    sigma = opt.x
-
-    alpha = mu + sigma**2 / 2
-    samuelson_share = alpha / (sigma**2 * eta)
-    return samuelson_share, expected_return * samuelson_share * 100
+    def samuelson_share(self):
+        return self.mu / (self.sigma**2 * self.rra)
 
 
 def optimal_allocation(asset1_mean, asset1_stdev, asset2_mean, asset2_stdev, correlation, eta=1):
@@ -257,3 +247,10 @@ class TestUtilityLeverage(TestCase):
                 n_year_utility = obj.expected_utility_after_n_years(
                     num_years=1, pure_time_preference=0)
                 self.assertAlmostEqual(one_year_utility, n_year_utility)
+
+
+# print(UtilityLeverage(mu=0.05, sigma=0.18).optimal_leverage())
+# print(samuelson_share(0.05, 0.18))
+u = UtilityLeverage(mu=0.05, sigma=0.18, rra=2)
+print(u.optimal_leverage())
+print(u.samuelson_share())
