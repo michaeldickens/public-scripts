@@ -99,7 +99,7 @@ class UtilityLeverage:
     rf = 0.00  # not currently used
     rra = 2.0
 
-    mu = 0.07
+    mu = 0.07  # log(arithmetic mean)
     sigma = 0.13
     market_sigma = 0.156
 
@@ -118,11 +118,11 @@ class UtilityLeverage:
             return np.log(consumption)
         return consumption**(1 - self.rra) / (1 - self.rra)
 
-    def expected_utility(self, leverage, starting_capital=1):
+    def expected_utility(self, leverage=1, starting_capital=1):
         # mean and standard deviation of a normal random variable scale linearly
         # when multiplied by a constant
         sigma = starting_capital * leverage * self.sigma
-        mu = starting_capital * leverage * self.mu - sigma**2/2
+        mu = starting_capital * leverage * self.mu - sigma**2/2  # median / geometric mean
 
         # Formula taken from slide 12 of
         # http://web.stanford.edu/class/cme241/lecture_slides/UtilityTheoryForRisk.pdf
@@ -147,7 +147,7 @@ class UtilityLeverage:
             if self.rra == 1:
                 util = np.log(starting_capital) + inner
             else:
-                util = starting_capital**(1 - self.rra) * np.exp(inner * (1 - self.rra)) / (1 - self.rra)
+                util = (starting_capital**(1 - self.rra) * np.exp(inner * (1 - self.rra)) - 1) / (1 - self.rra)
             return util * stats.norm.pdf(w, 0, 1)
 
         return integrate.quad(integrand, -10, 10)[0]
@@ -166,17 +166,17 @@ class UtilityLeverage:
         '''Find the risk-free return rate that will give a particular utility.'''
         if self.rra == 1:
             return u
-        return np.log((u * (1 - self.rra))**(1/(1 - self.rra)))
+        return np.log((u * (1 - self.rra) + 1)**(1/(1 - self.rra)))
 
     def certainty_equivalent_return(self):
         '''
         Find the risk-free return that has the same utility as the
         optimally-leveraged distribution given by mu and sigma.
 
-        Alternatively, use the formula from slide 12 of
+        Alternatively, can compute analytically:
+        Certainty Equivalent = (leverage * mu) - (leverage * sigma)**2/2 * rra
+        See slide 12 of
         http://web.stanford.edu/class/cme241/lecture_slides/UtilityTheoryForRisk.pdf
-          (exp(mu(1 + eta) + sigma^2/2 * (1 - eta)^2) - 1) / (1 - eta) | eta != 1
-          mu | eta == 1
         '''
         leverage_result = self.optimal_leverage()
         optimal_leverage = leverage_result.x
@@ -184,13 +184,13 @@ class UtilityLeverage:
         return {
             'leverage': optimal_leverage,
             'utility': expected_utility,
-            'risk-free': self.risk_free_return_for_utility(expected_utility),
+            'certainty-equivalent': self.risk_free_return_for_utility(expected_utility),
         }
 
     def expected_utility_after_n_years(self, num_years: int, pure_time_preference: float) -> float:
         mu = self.mu * num_years
         sigma = self.sigma * np.sqrt(num_years)
-        pseudo_asset = UtilityLeverage(
+        pseudo_asset = UtilityLever_age(
             rra=self.rra, mu=mu, sigma=sigma, market_sigma=self.market_sigma)
         return (
             (1 - pure_time_preference)**num_years
@@ -205,6 +205,7 @@ class UtilityLeverage:
         return discount_rate**(1/rra) * np.exp((mu + sigma**2/2)*(1 - rra)/rra - (1 - rra)*sigma**2/2)
 
     def samuelson_share(self):
+        # equal to `optimal_leverage`
         return self.mu / (self.sigma**2 * self.rra)
 
 
@@ -249,8 +250,5 @@ class TestUtilityLeverage(TestCase):
                 self.assertAlmostEqual(one_year_utility, n_year_utility)
 
 
-# print(UtilityLeverage(mu=0.05, sigma=0.18).optimal_leverage())
-# print(samuelson_share(0.05, 0.18))
-u = UtilityLeverage(mu=0.05, sigma=0.18, rra=2)
-print(u.optimal_leverage())
-print(u.samuelson_share())
+u = UtilityLeverage(mu=0.05, sigma=0.13, rra=1)
+print(u.certainty_equivalent_return())
