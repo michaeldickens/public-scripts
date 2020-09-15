@@ -116,7 +116,7 @@ class UtilityLeverage:
     def utility(self, consumption):
         if self.rra == 1:
             return np.log(consumption)
-        return consumption**(1 - self.rra) / (1 - self.rra)
+        return (consumption**(1 - self.rra) - 1) / (1 - self.rra)
 
     def expected_utility(self, leverage=1, starting_capital=1):
         # mean and standard deviation of a normal random variable scale linearly
@@ -190,7 +190,7 @@ class UtilityLeverage:
     def expected_utility_after_n_years(self, num_years: int, pure_time_preference: float) -> float:
         mu = self.mu * num_years
         sigma = self.sigma * np.sqrt(num_years)
-        pseudo_asset = UtilityLever_age(
+        pseudo_asset = UtilityLeverage(
             rra=self.rra, mu=mu, sigma=sigma, market_sigma=self.market_sigma)
         return (
             (1 - pure_time_preference)**num_years
@@ -248,6 +248,17 @@ class TestUtilityLeverage(TestCase):
                 n_year_utility = obj.expected_utility_after_n_years(
                     num_years=1, pure_time_preference=0)
                 self.assertAlmostEqual(one_year_utility, n_year_utility)
+
+    def test_optimal_leverage_equals_samuelson_share(self):
+        # TODO: For sufficiently large rra/small mu/large sigma,
+        # `optimal_leverage` fails to find a solution
+        for rra in [0.5, 1.0, 2.0, 3.0]:
+            for mu in [0.05, 0.2]:
+                for sigma in [0.08, 0.13, 0.17]:
+                    obj = UtilityLeverage(mu=mu, sigma=sigma, rra=rra)
+                    optimal_leverage = obj.optimal_leverage().x
+                    samuelson_share = obj.samuelson_share()
+                    self.assertAlmostEqual(optimal_leverage, samuelson_share, places=5)
 
 
 u = UtilityLeverage(mu=0.05, sigma=0.13, rra=1)
