@@ -124,7 +124,7 @@ def mvo(max_stdev):
         x0=[0.01 for _ in means],
         constraints=[no_shorts_constraint, variance_constraint]
     )
-    print("Return: {:.2f}%".format(opt.fun))
+    print("Return: {:.2f}%".format(-opt.fun))
     print("Holdings:\n{}".format("\n".join([name + "\t" + (str(x) if x > 1e-10 else "0") for name, x in zip(asset_classes, opt.x)])))
 
-mvo(0.16)
+mvo(0.10)
