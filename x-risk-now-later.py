@@ -8,10 +8,12 @@ Created: 2020-07-19
 
 """
 
-from typing import Callable
+from typing import Callable, Tuple
 
 from scipy import integrate, optimize, stats
 import sympy
+
+from leverage import LeverageEnvironment
 
 
 def updated_x_risk(initial_x_risk: float, spending: float) -> float:
@@ -41,7 +43,8 @@ def permanent_reduction_binary(
     spending permanently reduces x-risk.
 
     After the first `periods_til_later` periods, there will be
-    `exogenous_spending` spending on x-risk.
+    `exogenous_spending` spending
+    on x-risk.
 
     Doubling cost is normalized to 1. Budget and exogenous spending should be
     put relative to doubling cost.
@@ -443,6 +446,25 @@ def permanent_reduction_binary_with_exogenous_target(
     return (utility_now, utility_later)
 
 
+def expected_utility_of_giving(constant_func: Callable[[float], Tuple[float, float]],
+                               mean: float,
+                               stdev: float,
+):
+    expected_utility_now = 0
+    expected_utility_later = 0
+
+    # integrate
+    for i in range(-99, 100):
+        z_score = i / 10
+        interest_rate = mean + z_score * stdev
+        utility_now, utility_later = constant_func(interest_rate)
+        pdf = stats.norm.pdf(z_score, 0, 1)
+        expected_utility_now += utility_now * pdf
+        expected_utility_later += utility_later * pdf
+
+    return (expected_utility_now, expected_utility_later)
+
+
 def breakeven_interest_rate(initial_x_risk=0.002, budget=1, exogenous_spending=None, movement_growth_rate=None,
                             exogenous_spending_target=None):
     '''
@@ -457,30 +479,71 @@ def breakeven_interest_rate(initial_x_risk=0.002, budget=1, exogenous_spending=N
 
     # Do not change anything below this line
     assert(
-        (exogenous_spending is None and movement_growth_rate is None and exogenous_spending_target is not None) or
-        (exogenous_spending is None and movement_growth_rate is not None and exogenous_spending_target is None) or
-        (exogenous_spending is not None and movement_growth_rate is None and exogenous_spending_target is None)
+        (exogenous_spending is not None)
+        ^ (movement_growth_rate is not None)
+        ^ (exogenous_spending_target is not None)
     )
 
-    if exogenous_spending is not None:
-        custom_param = exogenous_spending
-    elif movement_growth_rate is not None:
-        custom_param = movement_growth_rate
-    elif exogenous_spending_target is not None:
-        custom_param = exogenous_spending_target
+    custom_param = exogenous_spending or movement_growth_rate or exogenous_spending_target or 0
 
-    def func(interest_rate):
-        now, later = f(
+    def minimand(interest_rate):
+        utility_now, utility_later = f(
             period_utility, convergence_value, initial_x_risk, custom_param,
-            interest_rate=interest_rate[0], budget=budget)
-        return (now - later)**2
+            interest_rate=interest_rate, budget=budget
+        )
+        return (utility_now - utility_later)**2
 
     # for some reason this gives the wrong answer for some initial guesses, but
     # gets it right if the initial guess is close enough to 0. maybe step sizes
     # are too big?
-    opt = optimize.minimize(func, [0.001])
-    res = f(period_utility, convergence_value, initial_x_risk, custom_param, opt.x[0], budget=budget)
-    print("Breakeven rate {:.3f}% gives utility {} (relative difference {:.0e})".format(100 * opt.x[0], res, (res[0] - res[1])/res[0]))
+    opt = optimize.minimize_scalar(minimand)
+    res = f(
+        period_utility, convergence_value, initial_x_risk, custom_param,
+        interest_rate=opt.x, budget=budget,
+    )
+    print("Breakeven rate {:.3f}% gives utility {} (relative difference {:.0e})".format(100 * opt.x, res, (res[0] - res[1])/res[0]))
+
+
+def optimal_leverage(initial_x_risk=0.002, budget=1, exogenous_spending=None, movement_growth_rate=None,
+                     exogenous_spending_target=None):
+    '''Find how much leverage maximizes the expected utility of giving later.'''
+
+    # Customize these bits
+    period_utility = lambda t: 1
+    convergence_value = lambda x_risk: 1 / x_risk
+    f = temporary_reduction_binary
+    risky_mean = 0.02
+    risky_sigma = 0.18
+
+    # Do not change anything below this line
+    assert(
+        (exogenous_spending is not None)
+        ^ (movement_growth_rate is not None)
+        ^ (exogenous_spending_target is not None)
+    )
+
+    custom_param = exogenous_spending or movement_growth_rate or exogenous_spending_target or 0
+
+    def minimand(leverage):
+        stdev = leverage * risky_sigma
+        mean = leverage * risky_mean - stdev**2/2
+        expected_utility_now, expected_utility_later = expected_utility_of_giving(
+            lambda interest_rate: f(
+                period_utility, convergence_value, initial_x_risk, custom_param,
+                interest_rate=interest_rate, budget=budget
+            ),
+            mean, stdev
+        )
+        print("{:.2f} -> {}".format(leverage, expected_utility_later))
+        return -expected_utility_later
+
+    opt = optimize.minimize_scalar(minimand)
+    print("Optimal leverage {:.2f} gives return {:.2f}%, stdev {:.2f}%, E[utility] {}".format(
+        opt.x,
+        100 * opt.x * risky_mean,
+        100 * opt.x * risky_sigma,
+        -opt.fun,
+    ))
 
 
 def expected_utility_of_investment(mu, sigma, initial_x_risk=0.002, budget=0.01, periods_til_later=1):
@@ -502,4 +565,5 @@ def expected_utility_of_investment(mu, sigma, initial_x_risk=0.002, budget=0.01,
     )[0]
 
 
-breakeven_interest_rate(budget=1, exogenous_spending_target=100)
+# breakeven_interest_rate(budget=1, exogenous_spending=100)
+optimal_leverage(budget=1, exogenous_spending=100)
