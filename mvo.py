@@ -45,6 +45,7 @@ asset_classes = [
     "US LBO",
 ]
 
+# Some asset classes are commented out and set to -10 so they won't be used
 means = np.array([
     0.2,  # US Large
     1.9,  # US Small
@@ -64,15 +65,15 @@ means = np.array([
     4.3,  # Emerging Market (Local)
     2.8,  # EM Cash
     1.0,  # Commodities
-    0,  # 0.7,  # Bank Loans
+    -10,  # 0.7,  # Bank Loans
     -0.8,  # Global Ex-US Corporates
     1.5,  # REITS
     -0.6,  # United States Cash
-    0,  # 2.3,  # US Commercial Real Estate
-    0,  # 3.2,  # Global DM Ex-US Long/Short Equity
-    1.0,  # US Long/Short Equity
-    0, # 6.8,  # Europe LBO
-    0, # 0.0,  # US LBO
+    -10,  # 2.3,  # US Commercial Real Estate
+    -10,  # 3.2,  # Global DM Ex-US Long/Short Equity
+    -10,  # 1.0,  # US Long/Short Equity
+    -10,  # 6.8,  # Europe LBO
+    -10,  # 0.0,  # US LBO
 ])
 
 covariances = np.array([
@@ -114,6 +115,14 @@ def mvo(max_stdev):
         lb=[0 for _ in means], ub=[np.inf for _ in means]
     )
 
+    # You're not allowed to invest money in nothing for a guaranteed 0% return.
+    # That would be ok if returns were nominal, but this program uses real
+    # returns.
+    must_hold_something_constraint = optimize.LinearConstraint(
+        [1 for _ in means],
+        lb=1, ub=np.inf
+    )
+
     variance_constraint = optimize.NonlinearConstraint(
         lambda weights: np.dot(np.dot(covariances, weights), weights),
         lb=0, ub=100 * max_stdev**2
@@ -122,9 +131,10 @@ def mvo(max_stdev):
     opt = optimize.minimize(
         neg_return,
         x0=[0.01 for _ in means],
-        constraints=[no_shorts_constraint, variance_constraint]
+        constraints=[no_shorts_constraint, must_hold_something_constraint, variance_constraint]
     )
     print("Return: {:.2f}%".format(-opt.fun))
-    print("Holdings:\n{}".format("\n".join([name + "\t" + (str(x) if x > 1e-10 else "0") for name, x in zip(asset_classes, opt.x)])))
+    print()
+    print("\n".join([name + "\t" + (str(x) if x > 1e-10 else "0") for name, x in zip(asset_classes, opt.x)]))
 
 mvo(0.10)
