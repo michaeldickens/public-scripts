@@ -14,6 +14,10 @@ from scipy import optimize
 
 # Returns and covariances downloaded from Research Affiliates' Asset Allocation
 # Interactive on 2020-10-05.
+#
+# I originally tried to do this on the .xslx that I downloaded from RAFI, but
+# LibreOffice's solver apparently sucks at solving optimization problems.
+
 
 asset_classes = [
     "US Large",
