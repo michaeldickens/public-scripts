@@ -21,16 +21,16 @@ class Portfolio():
     leverage: float
     fee: float
     tax_rate: float
-    deep_risk: float
+    risk_of_ruin: float
 
     def marginal_utility(self, ret):
         return np.exp(ret)**(-self.rra)
 
     def run_simulation(self):
         '''Return utility'''
-        wealth = 100
+        wealth = 1
         ret = np.random.normal(loc=self.mu, scale=self.sigma)
-        if random.random() < self.deep_risk:
+        if random.random() < self.risk_of_ruin:
             wealth = 0
         wealth *= 1 - self.fee
         old_wealth = wealth
@@ -48,13 +48,18 @@ class Portfolio():
         stderr = np.std(simulations) / np.sqrt(num_simulations)
         print("{} expected utility (stderr: {})".format(expected_utility, stderr))
 
-daf = Portfolio(rra=1.2, mu=0.03, sigma=0.10, leverage=1, fee=0.006, tax_rate=0, deep_risk=0.01)
+    def expected_utility(self):
+        gross_utility = np.exp((self.leverage - self.rra) * self.mu + (self.leverage - self.rra)**2 * self.sigma**2 / 2)
+        return (gross_utility * (1 - self.tax_rate) + self.tax_rate) * (1 - self.fee) * (1 - self.risk_of_ruin)
+
+daf = Portfolio(rra=1.2, mu=0.03, sigma=0.10, leverage=1, fee=0.006, tax_rate=0, risk_of_ruin=0.01)
 
 # This assumes you never realize capital gains, but that you have to pay taxes on dividends and dividends are consistent (even in down years), so the tax behaves like a fixed fee
-taxable = Portfolio(rra=1.2, mu=0.03, sigma=0.10, leverage=1.3, fee=0.03 / 2 * 0.2, tax_rate=0, deep_risk=0.02)
+# taxable = Portfolio(rra=1.2, mu=0.03, sigma=0.10, leverage=1.3, fee=0.03 / 2 * 0.2, tax_rate=0, risk_of_ruin=0.03)
+taxable = Portfolio(rra=1.2, mu=0.03, sigma=0.10, leverage=1, fee=0.003, tax_rate=0, risk_of_ruin=0.01)
 
-daf.monte_carlo()
-taxable.monte_carlo()
+print("DAF:", daf.expected_utility())
+print("taxable:", taxable.expected_utility())
 
 # expected utility monotonically decreases with increasing fees, taxes, deep risk
 # monotonically increases with increasing leverage
