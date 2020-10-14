@@ -15,13 +15,13 @@ import numpy as np
 
 @dataclass
 class Portfolio():
-    rra: float
-    mu: float
-    sigma: float
-    leverage: float
-    fee: float
-    tax_rate: float
-    risk_of_ruin: float
+    rra: float = 1.2
+    mu: float = 0.03
+    sigma: float = 0.10
+    leverage: float = 1
+    fee: float = 0
+    tax_rate: float = 0
+    risk_of_ruin: float = 0
 
     def marginal_utility(self, ret):
         return np.exp(ret)**(-self.rra)
@@ -52,11 +52,11 @@ class Portfolio():
         gross_utility = np.exp((self.leverage - self.rra) * self.mu + (self.leverage - self.rra)**2 * self.sigma**2 / 2)
         return (gross_utility * (1 - self.tax_rate) + self.tax_rate) * (1 - self.fee) * (1 - self.risk_of_ruin)
 
-daf = Portfolio(rra=1.2, mu=0.03, sigma=0.10, leverage=1, fee=0.006, tax_rate=0, risk_of_ruin=0.01)
+daf = Portfolio(fee=0.006, risk_of_ruin=0.01)
 
 # This assumes you never realize capital gains, but that you have to pay taxes on dividends and dividends are consistent (even in down years), so the tax behaves like a fixed fee
 # taxable = Portfolio(rra=1.2, mu=0.03, sigma=0.10, leverage=1.3, fee=0.03 / 2 * 0.2, tax_rate=0, risk_of_ruin=0.03)
-taxable = Portfolio(rra=1.2, mu=0.03, sigma=0.10, leverage=1, fee=0.003, tax_rate=0, risk_of_ruin=0.01)
+taxable = Portfolio(fee=0.003, risk_of_ruin=0.03)
 
 print("DAF:", daf.expected_utility())
 print("taxable:", taxable.expected_utility())
