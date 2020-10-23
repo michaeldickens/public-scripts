@@ -230,5 +230,5 @@ class TestLeverageEnvironment(TestCase):
 
 if __name__ == "__main__":
     rra = 1
-    print(LeverageEnvironment(rra=rra, mu=0.05, sigma=0.12).certainty_equivalent_return(leverage=1))
-    print(LeverageEnvironment(rra=rra, mu=0.07, sigma=0.13).certainty_equivalent_return())
+    print(LeverageEnvironment(rra=rra, mu=0.03, sigma=0.15).certainty_equivalent_return(leverage=1))
+    print(LeverageEnvironment(rra=rra, mu=0.03, sigma=0.15).certainty_equivalent_return())

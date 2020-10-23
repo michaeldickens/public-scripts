@@ -157,17 +157,16 @@ factor_covariances_with_tsmom = [
 # covariances = rafi_covariances
 
 asset_classes = [
-    "Market", "Value", "Mom"
+    "60/40", "AQR TSMOM"
 ]
 
-# "Value and Momentum Everywhere" reports factor returns of 5.8, 7.1
-means = [3, 3, 3]
+# from AQR's "A Century of Evidence of Trend-Following Investing"
 covariances = None
-stdevs = [16, 11, 12]
+means = [7.8, 11.2]
+stdevs = [10.8, 9.7]
 correlations = [
-    [1, 0, 0],
-    [0, 1, -0.5],
-    [0, -0.5, 1],
+    [1, 0],  # correlation to equities is 0.00, to bonds is -0.04
+    [0, 1]
 ]
 
 def neg_return(weights):
@@ -180,7 +179,7 @@ def neg_sharpe(weights):
 
 def mvo(max_stdev=None, target_leverage=None):
     '''
-    max_stdev is in percentage terms
+    max_stdev should be provided as a percentage
     '''
     global covariances
     assert(max_stdev is not None or target_leverage is not None)
