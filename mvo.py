@@ -8,6 +8,8 @@ Created: 2020-10-05
 
 """
 
+from pprint import pprint
+
 import numpy as np
 from scipy import optimize
 
@@ -19,7 +21,7 @@ from scipy import optimize
 # LibreOffice's solver apparently sucks at solving optimization problems.
 
 
-asset_classes = [
+rafi_asset_classes = [
     "US Large",
     "US Small",
     "All country",
@@ -50,7 +52,7 @@ asset_classes = [
 ]
 
 # Some asset classes are commented out and set to -10 so they won't be used
-means = np.array([
+rafi_means = np.array([
     0.2,  # US Large
     1.9,  # US Small
     2.7,  # All country
@@ -80,7 +82,7 @@ means = np.array([
     -10,  # 0.0,  # US LBO
 ])
 
-covariances = np.array([
+rafi_covariances = np.array([
     [2.075, 2.484, 2.143, 2.136, 2.318, -0.060, -0.520, -0.144, 0.178, 0.905, -0.043, 0.092, 0.178, 0.194, 0.582, 0.997, 0.658, 0.856, 0.567, 0.699, 2.277, -0.011, 0.371, 1.054, 0.779, 2.557, 2.660],
     [2.484, 3.592, 2.523, 2.467, 2.718, -0.098, -0.842, -0.228, 0.150, 1.130, -0.121, 0.028, 0.087, 0.129, 0.615, 1.114, 0.763, 0.998, 0.712, 0.724, 2.930, -0.021, 0.481, 1.314, 1.050, 2.927, 3.161],
     [2.143, 2.523, 2.409, 2.537, 2.902, -0.059, -0.526, -0.141, 0.259, 1.064, -0.013, 0.167, 0.330, 0.326, 0.769, 1.344, 0.865, 1.098, 0.655, 0.943, 2.394, -0.011, 0.361, 1.298, 0.786, 2.986, 2.682],
@@ -110,35 +112,127 @@ covariances = np.array([
     [2.660, 3.161, 2.682, 2.638, 2.776, -0.072, -0.683, -0.181, 0.157, 0.966, -0.082, 0.048, 0.190, 0.210, 0.621, 1.177, 0.800, 1.007, 0.597, 0.822, 2.720, -0.008, 0.468, 1.299, 1.010, 3.246, 7.916],
 ])
 
+factor_asset_classes = [
+    "Mkt-RF",
+    "HML",
+    "Mom",
+]
+
+# 1927-2019, calculated from Ken French Data Library
+factor_means = [
+    6.4,
+    3.6,
+    6.5,
+]
+
+factor_covariances = [
+    [ 3.423,  0.515, -1.025],
+    [ 0.515,  1.464, -0.809],
+    [-1.025, -0.809,  2.657],
+]
+
+factor_asset_classes_with_tsmom = [
+    "Mkt-RF",
+    "HML",
+    "Mom",
+    "TSMOM^EQ",
+]
+
+factor_means_with_tsmom = [
+    7.7,
+    1.3,
+    5.1,
+    15.8,
+]
+
+factor_covariances_with_tsmom = [
+    [2.28, -0.32, -0.45, -0.08],
+    [-0.32, 1.00, -0.31, -0.35],
+    [-0.45, -0.31, 2.47, 1.69],
+    [-0.08, -0.35, 1.69, 7.24],
+]
+
+# asset_classes = rafi_asset_classes
+# means = rafi_means
+# covariances = rafi_covariances
+
+asset_classes = [
+    "Market", "Value", "Mom"
+]
+
+# "Value and Momentum Everywhere" reports factor returns of 5.8, 7.1
+means = [3, 3, 3]
+covariances = None
+stdevs = [16, 11, 12]
+correlations = [
+    [1, 0, 0],
+    [0, 1, -0.5],
+    [0, -0.5, 1],
+]
+
 def neg_return(weights):
     return -np.dot(weights, means)
 
-def mvo(max_stdev):
+def neg_sharpe(weights):
+    ret = np.dot(weights, means)
+    stdev = np.sqrt(np.dot(np.dot(covariances, weights), weights))
+    return -ret / stdev
+
+def mvo(max_stdev=None, target_leverage=None):
+    '''
+    max_stdev is in percentage terms
+    '''
+    global covariances
+    assert(max_stdev is not None or target_leverage is not None)
+
+    if covariances is None:
+        covariances = [
+            [correl * stdev1 * stdev2 / 100 for correl, stdev2 in zip(row, stdevs)]
+            for row, stdev1 in zip(correlations, stdevs)
+        ]
+    pprint(covariances)
+
     no_shorts_constraint = optimize.LinearConstraint(
         np.identity(len(means)),  # identity matrix
-        lb=[0 for _ in means], ub=[np.inf for _ in means]
+        lb=[0 for _ in means],
+        ub=[np.inf for _ in means]
     )
 
-    # You're not allowed to invest money in nothing for a guaranteed 0% return.
-    # That would be ok if returns were nominal, but this program uses real
-    # returns.
-    must_hold_something_constraint = optimize.LinearConstraint(
-        [1 for _ in means],
-        lb=1, ub=np.inf
-    )
-
-    variance_constraint = optimize.NonlinearConstraint(
-        lambda weights: np.dot(np.dot(covariances, weights), weights),
-        lb=0, ub=100 * max_stdev**2
-    )
+    if max_stdev is not None:
+        # You're not allowed to invest money in nothing for a guaranteed 0% return.
+        # That would be ok if returns were nominal, but this program uses real
+        # returns.
+        leverage_constraint = optimize.LinearConstraint(
+            [1 for _ in means],
+            lb=1, ub=np.inf
+        )
+        variance_constraint = optimize.NonlinearConstraint(
+            lambda weights: np.dot(np.dot(covariances, weights), weights),
+            lb=0, ub=max_stdev**2 / 100
+        )
+        optimand = neg_return
+    else:
+        leverage_constraint = optimize.LinearConstraint(
+            [1 for _ in means],
+            lb=target_leverage, ub=target_leverage
+        )
+        variance_constraint = optimize.LinearConstraint(
+            # not an actual constraint
+            [0 for _ in means],
+            lb=0, ub=1
+        )
+        optimand = neg_sharpe
 
     opt = optimize.minimize(
-        neg_return,
+        optimand,
         x0=[0.01 for _ in means],
-        constraints=[no_shorts_constraint, must_hold_something_constraint, variance_constraint]
+        constraints=[no_shorts_constraint, leverage_constraint, variance_constraint]
     )
     print("Return: {:.2f}%".format(-opt.fun))
+    print("Stdev: {:.2f}%".format(
+        np.sqrt(np.dot(np.dot(covariances, opt.x), opt.x) / 100) * 100
+    ))
     print()
     print("\n".join([name + "\t" + (str(x) if x > 1e-10 else "0") for name, x in zip(asset_classes, opt.x)]))
 
-mvo(0.10)
+mvo(target_leverage=1)
