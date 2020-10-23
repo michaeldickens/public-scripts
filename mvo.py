@@ -190,7 +190,6 @@ def mvo(max_stdev=None, target_leverage=None):
             [correl * stdev1 * stdev2 / 100 for correl, stdev2 in zip(row, stdevs)]
             for row, stdev1 in zip(correlations, stdevs)
         ]
-    pprint(covariances)
 
     no_shorts_constraint = optimize.LinearConstraint(
         np.identity(len(means)),  # identity matrix
@@ -228,7 +227,7 @@ def mvo(max_stdev=None, target_leverage=None):
         x0=[0.01 for _ in means],
         constraints=[no_shorts_constraint, leverage_constraint, variance_constraint]
     )
-    print("Return: {:.2f}%".format(-opt.fun))
+    print("Return: {:.2f}%".format(np.dot(opt.x, means)))
     print("Stdev: {:.2f}%".format(
         np.sqrt(np.dot(np.dot(covariances, opt.x), opt.x) / 100) * 100
     ))
