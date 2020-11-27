@@ -36,8 +36,11 @@ class LeverageEnvironment:
     def expected_utility(self, leverage=1, starting_capital=1):
         # mean and standard deviation of a normal random variable scale linearly
         # when multiplied by a constant
+
+        # mu = median / geometric mean
+        # mu could also be written as leverage * self.alpha - sigma**2/2
+        mu = leverage * self.mu - leverage * (leverage - 1) * self.sigma**2 / 2
         sigma = leverage * self.sigma
-        mu = leverage * self.alpha - sigma**2/2  # median / geometric mean
 
         # See page 5 of https://www.gordoni.com/lifetime_portfolio_selection.pdf
         # Or see slide 12 of
@@ -66,7 +69,7 @@ class LeverageEnvironment:
 
         return integrate.quad(integrand, -10, 10)[0]
 
-    def expected_utility_general(self, leverage):
+    def expected_utility_general(self, leverage, starting_capital=1):
         '''
         Works for any utility function
         '''
@@ -79,14 +82,16 @@ class LeverageEnvironment:
             # Continuous Time Model". `w` is a standard normal random variable.
             # Can also be computed by using a normal random variable with
             # mu=(mean - sigma^2/2), sigma=sigma.
-            consumption = np.exp(mean - sigma**2/2 + sigma * w)
+            consumption = starting_capital * np.exp(mean - sigma**2/2 + sigma * w)
             return self.utility(consumption) * stats.norm.pdf(w, 0, 1)
 
         return integrate.quad(integrand, -10, 10)[0]
 
-    def optimal_leverage(self):
+    def optimal_leverage(self, starting_capital=1):
         return optimize.minimize_scalar(
-            lambda leverage: -self.expected_utility_general(leverage),
+            lambda leverage: -self.expected_utility(
+                leverage, starting_capital=starting_capital
+            ),
             bracket=[0.00001, 1, 999999]
         )
 
@@ -94,13 +99,13 @@ class LeverageEnvironment:
         opt_result = self.optimal_leverage()
         print("Leverage {} gives utility {}".format(opt_result.x, -opt_result.fun))
 
-    def risk_free_return_for_utility(self, u):
+    def risk_free_return_for_utility(self, u, starting_capital=1):
         '''Find the risk-free return rate that will give a particular utility.'''
         if self.rra == 1:
-            return u
-        return np.log((u * (1 - self.rra) + 1)**(1/(1 - self.rra)))
+            return u - np.log(starting_capital)
+        return np.log((u * (1 - self.rra) + 1)**(1/(1 - self.rra))) - np.log(starting_capital)
 
-    def certainty_equivalent_return(self, leverage=None):
+    def certainty_equivalent_return(self, leverage=None, starting_capital=1):
         '''
         Find the risk-free return that has the same utility as the
         leveraged distribution given by mean, sigma, and leverage.
@@ -112,16 +117,18 @@ class LeverageEnvironment:
         http://web.stanford.edu/class/cme241/lecture_slides/UtilityTheoryForRisk.pdf
         '''
         if leverage is None:
-            leverage_result = self.optimal_leverage()
+            leverage_result = self.optimal_leverage(starting_capital=starting_capital)
             leverage = leverage_result.x
             expected_utility = -leverage_result.fun
         else:
-            expected_utility = self.expected_utility_general(leverage)
+            expected_utility = self.expected_utility(leverage, starting_capital=starting_capital)
 
         return {
             'leverage': leverage,
             'utility': expected_utility,
-            'certainty-equivalent': self.risk_free_return_for_utility(expected_utility),
+            'certainty-equivalent': self.risk_free_return_for_utility(
+                expected_utility, starting_capital=starting_capital
+            ),
         }
 
     def expected_utility_after_n_years(self, num_years: int, pure_time_preference: float) -> float:
@@ -229,6 +236,36 @@ class TestLeverageEnvironment(TestCase):
 
 
 if __name__ == "__main__":
-    rra = 1
-    print(LeverageEnvironment(rra=rra, mu=0.03, sigma=0.15).certainty_equivalent_return(leverage=1))
-    print(LeverageEnvironment(rra=rra, mu=0.03, sigma=0.15).certainty_equivalent_return())
+    # edit these
+    expected_sell_price = 30
+    affirm_volatility = 0.60
+    relative_risk_aversion = 2
+    strike_price = 1.68
+    valuation = 15.38
+    years_to_liquidity = 0.8
+
+    # don't edit these
+    spending_now = (valuation - strike_price) * 0.41 + strike_price
+    if years_to_liquidity >= 1:
+        # convert income to long-term capital gain
+        savings_later = (expected_sell_price - valuation) * (0.47 - 0.20)
+    else:
+        # convert income to short-term capital gain (avoid CA and FICA taxes)
+        savings_later = (expected_sell_price - valuation) * (0.123 + 0.0235)
+    return_to_exercise = (1 + savings_later / spending_now)**(1/years_to_liquidity) - 1
+
+    print("If you invest cash:")
+    market_res = LeverageEnvironment(
+        rra=relative_risk_aversion, mu=0.07, sigma=0.13
+    ).certainty_equivalent_return(leverage=1.5)
+    print(market_res)
+
+    print("If you spend cash to exercise:")
+    exercise_res = LeverageEnvironment(
+        rra=relative_risk_aversion,
+        mu=return_to_exercise - (affirm_volatility**2)/2,
+        sigma=affirm_volatility
+    ).certainty_equivalent_return(leverage=1)
+    print(exercise_res)
+
+    print("Should exercise?", "YES" if exercise_res['utility'] > market_res['utility'] else "NO")
