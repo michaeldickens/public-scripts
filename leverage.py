@@ -237,18 +237,25 @@ class TestLeverageEnvironment(TestCase):
 
 if __name__ == "__main__":
     # edit these
-    expected_sell_price = 30
+    expected_sell_price = 30  # arithmetic mean
     affirm_volatility = 0.60
-    relative_risk_aversion = 2
+    relative_risk_aversion = 1.5
     strike_price = 1.68
     valuation = 15.38
-    years_to_liquidity = 0.8
+    years_to_liquidity = 0.6
+    current_tax_rate = 0.4865
+
+    # TODO: This is wrong in a way that seems like it matters. Savings isn't a
+    # log-normal distribution with mean savings_later/spending_now. It's a
+    # log-normal distribution with mean savings_later, minus a constant factor
+    # savings_now. But also you need to account for your other savings. that
+    # you didn't spend on exercise.
 
     # don't edit these
-    spending_now = (valuation - strike_price) * 0.41 + strike_price
+    spending_now = (valuation - strike_price) * current_tax_rate + strike_price
     if years_to_liquidity >= 1:
         # convert income to long-term capital gain
-        savings_later = (expected_sell_price - valuation) * (0.47 - 0.20)
+        savings_later = (expected_sell_price - valuation) * (0.51 - 0.20)
     else:
         # convert income to short-term capital gain (avoid CA and FICA taxes)
         savings_later = (expected_sell_price - valuation) * (0.123 + 0.0235)
@@ -256,7 +263,7 @@ if __name__ == "__main__":
 
     print("If you invest cash:")
     market_res = LeverageEnvironment(
-        rra=relative_risk_aversion, mu=0.07, sigma=0.13
+        rra=relative_risk_aversion, mu=0.06, sigma=0.13
     ).certainty_equivalent_return(leverage=1.5)
     print(market_res)
 

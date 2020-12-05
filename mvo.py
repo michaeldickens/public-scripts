@@ -14,14 +14,13 @@ import numpy as np
 from scipy import optimize
 
 
+covariances = None
+
 # Returns and covariances downloaded from Research Affiliates' Asset Allocation
 # Interactive on 2020-10-05.
 #
 # I originally tried to do this on the .xslx that I downloaded from RAFI, but
 # LibreOffice's solver apparently sucks at solving optimization problems.
-
-covariances = None
-
 rafi_data = dict(
     asset_classes = [
         "US Large",
@@ -44,7 +43,7 @@ rafi_data = dict(
         "Commodities",
         "Bank Loans",
         "Global Ex-US Corporates",
-        "REITS",
+        "REITs",
         "United States Cash",
         "US Commercial Real Estate",
         "Global DM Ex-US Long/Short Equity",
@@ -53,35 +52,34 @@ rafi_data = dict(
         "US LBO",
     ],
 
-    # Some asset classes are commented out and set to -10 so they won't be used
     means = np.array([
-        0.2,  # US Large
-        1.9,  # US Small
-        2.7,  # All country
-        5.0,  # EAFE
-        6.9,  # Emerging Markets
+         0.2,  # US Large
+         1.9,  # US Small
+         2.7,  # All country
+         5.0,  # EAFE
+         6.9,  # Emerging Markets
         -0.8,  # US Treasury Short
         -3.8,  # US Treasury Long
         -0.7,  # US Treasury Intermediate
         -0.5,  # US Corporate Intermediate
-        0.8,  # US High Yield
+         0.8,  # US High Yield
         -1.2,  # US Aggregate
         -0.4,  # US Tips
         -0.8,  # Global Ex-US Treasury
         -0.7,  # Global Aggregate
-        0.8,  # Emerging Market (Non-Local)
-        4.3,  # Emerging Market (Local)
-        2.8,  # EM Cash
-        1.0,  # Commodities
-        -10,  # 0.7,  # Bank Loans
+         0.8,  # Emerging Market (Non-Local)
+         4.3,  # Emerging Market (Local)
+         2.8,  # EM Cash
+         1.0,  # Commodities
+         0.7,  # Bank Loans
         -0.8,  # Global Ex-US Corporates
-        1.5,  # REITS
+         1.5,  # REITs
         -0.6,  # United States Cash
-        -10,  # 2.3,  # US Commercial Real Estate
-        -10,  # 3.2,  # Global DM Ex-US Long/Short Equity
-        -10,  # 1.0,  # US Long/Short Equity
-        -10,  # 6.8,  # Europe LBO
-        -10,  # 0.0,  # US LBO
+         2.3,  # US Commercial Real Estate
+         3.2,  # Global DM Ex-US Long/Short Equity
+         1.0,  # US Long/Short Equity
+         6.8,  # Europe LBO
+         0.0,  # US LBO
     ]),
 
     covariances = np.array([
@@ -115,25 +113,31 @@ rafi_data = dict(
     ])
 )
 
+# Calculated from Ken French Data Library, 1927-2019
 factor_data = dict(
     asset_classes = [
         "Mkt-RF",
         "HML",
         "Mom",
     ],
-    # 1927-2019, calculated from Ken French Data Library
     means = [
         6.4,
         3.6,
         6.5,
     ],
-    covariances = [
-        [ 3.423                ],
-        [ 0.515,  1.464        ],
-        [-1.025, -0.809,  2.657],
+    stdevs = [
+        18.5,
+        12.1,
+        16.3,
+    ],
+    correlations = [
+        [ 1             ],
+        [ 0.23,  1      ],
+        [-0.34, -0.41, 1],
     ]
 )
 
+# Calculated from Ken French Data Library and AQR data set, 1985-2019
 factor_data_with_tsmom = dict(
     asset_classes = [
         "Mkt-RF",
@@ -141,22 +145,27 @@ factor_data_with_tsmom = dict(
         "Mom",
         "TSMOM^EQ",
     ],
-    # 1985-2019 (?), calculated from Ken French Data Library and AQR data set
     means = [
         7.7,
         1.3,
         5.1,
-        15.8,
+        14.0,
     ],
-    covariances = [
-        [ 2.28                   ],
-        [-0.32,  1.00            ],
-        [-0.45, -0.31, 2.47      ],
-        [-0.08, -0.35, 1.69, 7.24],
-    ]
+    stdevs = [
+        15.1,
+        10.0,
+        15.7,
+        12.3,
+    ],
+    correlations = [
+        [ 1                   ],
+        [-0.21,  1   ,        ],
+        [-0.19, -0.20, 1      ],
+        [-0.02, -0.13, 0.40, 1],
+    ],
 )
 
-
+# From RAFI data above, but using just a few asset classes
 mini_rafi_data = dict(
     asset_classes = [
         "US Market", "Global ex-US", "Commodities", "Intermediate Bonds"
@@ -194,29 +203,29 @@ my_favorite_data = dict(
         # Val/Mom: long-only value and momentum, like QVAL/QMOM/IVAL/IMOM
         # VMOT: VMOT
         # ManFut: managed futures, like AQR Time Series Momentum data set
-        "Market", "Val/Mom", "VMOT", "ManFut"
+        # GVAL: cheap stocks in cheap countries, like GVAL
+        "Market", "Val/Mom", "VMOT", "ManFut", "GVAL"
     ],
-    means  = [ 3,  6,  6,  3],
-    stdevs = [16, 16, 13, 15],
+    means  = [ 3,  6,  6,  3,  9],
+    stdevs = [16, 16, 13, 15, 22],
     correlations = [
-        [ 1                ],
-        [ 0.8,  1          ],
-        [ 0.5,  0.8, 1     ],
-        [ 0  ,  0  , 0.2, 1],
+        [ 1                     ],
+        [ 0.8,  1               ],
+        [ 0.5,  0.8, 1          ],
+        [ 0  ,  0  , 0.2, 1     ],
+        [ 0.8,  0.8, 0.6, 0  , 1],
     ]
 )
 
 
-def borrowing_costs(borrowing_costs_enabled, weights, scale=1):
-    if not borrowing_costs_enabled:
-        return 0
-    short_cost = abs(sum(w for w in weights if w < 0)) * 0.25/100
-    leverage_cost = max(0, sum(w for w in weights if w > 0) - scale) * 1.0/100
-    return short_cost + leverage_cost
-
-
 class Optimizer:
-    def __init__(self, asset_data_to_use):
+    def __init__(self, asset_data_to_use, short_cost=0, leverage_cost=0):
+        '''
+        short_cost and leverage_cost are percentages.
+        '''
+        self.short_cost = short_cost / 100
+        self.leverage_cost = leverage_cost / 100
+
         self.asset_classes = asset_data_to_use['asset_classes']
         means = asset_data_to_use['means']
         stdevs = asset_data_to_use.get('stdevs')
@@ -250,11 +259,38 @@ class Optimizer:
             lb=0, ub=1
         )
 
+    def borrowing_costs(self, weights, scale=1):
+        total_short_cost = abs(sum(w for w in weights if w < 0)) * self.short_cost
+        total_leverage_cost = max(0, sum(w for w in weights if w > 0) - scale) * self.leverage_cost
+        return total_short_cost + total_leverage_cost
+
     def neg_return(self, weights):
-        return -np.dot(weights, self.means)
+        return -np.dot(weights, self.means + self.stdevs**2 / 2)
+
+    def neg_return_with_uncertainty(self, weights):
+        param_uncertainty = 0.2
+        num_samples = 5000
+
+        accum_return = 0
+        if getattr(self, 'monte_carlo_means', None) is None:
+            self.monte_carlo_means = []
+            arithmetic_means = self.means + self.stdevs**2 / 2
+            for i in range(num_samples):
+                # for now, assume stdev and correlation are fixed
+                self.monte_carlo_means.append(
+                    np.array([np.random.normal(mean, param_uncertainty * mean)
+                              for mean in arithmetic_means]))
+
+        for i in range(num_samples):
+            means = self.monte_carlo_means[i]
+            accum_return += -np.dot(weights, means)
+
+        return accum_return / num_samples
+
+        # return -np.dot(weights, self.means + self.stdevs**2 / 2)
 
     def neg_sharpe(self, weights):
-        ret = np.dot(weights, self.means)
+        ret = np.dot(weights, self.means + self.stdevs**2 / 2)
         stdev = np.sqrt(np.dot(np.dot(self.covariances, weights), weights))
         return -ret / stdev
 
@@ -263,20 +299,52 @@ class Optimizer:
         Estrada (2010), "Geometric Mean Maximization: An Overlooked Portfolio Approach?"
         https://web.iese.edu/jestrada/PDF/Research/Refereed/GMM-Extended.pdf
 
-        and Bernstein & Wilkinson (1997), "Diversification, Rebalancing, and the Geometric Mean Frontier"
+        See also
+        Bernstein & Wilkinson (1997), "Diversification, Rebalancing, and the Geometric Mean Frontier"
         https://www.effisols.com/basics/rebal.pdf
         '''
-        arithmetic_means = [mu + sigma**2/2 for (mu, sigma) in zip(self.means, self.stdevs)]
+        arithmetic_means = self.means + self.stdevs**2 / 2
         arithmetic_mean = np.dot(weights, arithmetic_means) - extra_cost
         variance = np.dot(np.dot(self.covariances, weights), weights)
         return np.log(1 + arithmetic_mean) - variance / (2 * (1 + arithmetic_mean)**2)
 
+    def geometric_mean_with_uncertainty(self, weights, extra_cost=0):
+        '''Find expected geometric mean when parameter values are uncertain.'''
+        param_uncertainty = 0.2
+        num_samples = 5000
+
+        accum_gmean = 0
+        saved_means = self.means
+        saved_stdevs = self.stdevs
+        if getattr(self, 'monte_carlo_means', None) is None:
+            self.monte_carlo_means = []
+            self.monte_carlo_stdevs = []
+            for i in range(num_samples):
+                # for now, assume stdev and correlation are fixed
+                self.monte_carlo_means.append(
+                    np.array([np.random.normal(mean, param_uncertainty * mean)
+                              for mean in saved_means]))
+                self.monte_carlo_stdevs.append(
+                    np.array([np.random.normal(stdev, param_uncertainty * stdev)
+                              for stdev in saved_stdevs]))
+
+        for i in range(num_samples):
+            self.means = self.monte_carlo_means[i]
+            self.stdevs = self.monte_carlo_stdevs[i]
+            accum_gmean += self.geometric_mean(weights, extra_cost)
+
+        self.means = saved_means
+        self.stdevs = saved_stdevs
+        return accum_gmean / num_samples
+
     def mvo(self, max_stdev=None, target_leverage=None, shorts_allowed=False):
         '''
-        max_stdev should be provided as a percentage
+        Find either the asset allocation with the highest return for a given
+        standard deviation, or the allocation with the highest Sharpe ratio for
+        a given amount of leverage.
+
+        max_stdev should be provided as a percentage.
         '''
-        # TODO: this assumes `means` is arithmetic means, but they're actually
-        # geometric means
         assert(max_stdev is not None or target_leverage is not None)
 
         shorts_constraint = self.NO_CONSTRAINT
@@ -284,9 +352,9 @@ class Optimizer:
 
         if not shorts_allowed:
             shorts_constraint = optimize.LinearConstraint(
-                np.identity(len(self.means)),  # identity matrix
-                lb=[0 for _ in self.means],
-                ub=[np.inf for _ in self.means]
+                np.identity(len(self.asset_classes)),  # identity matrix
+                lb=[0 for _ in self.asset_classes],
+                ub=[np.inf for _ in self.asset_classes]
             )
 
         if max_stdev is not None:
@@ -295,7 +363,7 @@ class Optimizer:
             # That would be ok if returns were nominal, but this program uses real
             # returns.
             leverage_constraint = optimize.LinearConstraint(
-                [1 for _ in self.means],
+                [1 for _ in self.asset_classes],
                 lb=1, ub=np.inf
             )
             variance_constraint = optimize.NonlinearConstraint(
@@ -305,14 +373,14 @@ class Optimizer:
             optimand = self.neg_return
         else:
             leverage_constraint = optimize.LinearConstraint(
-                [1 for _ in self.means],
+                [1 for _ in self.asset_classes],
                 lb=target_leverage, ub=target_leverage
             )
             optimand = self.neg_sharpe
 
         opt = optimize.minimize(
             optimand,
-            x0=[0.01 for _ in self.means],
+            x0=[0.01 for _ in self.asset_classes],
             constraints=[shorts_constraint, leverage_constraint, variance_constraint]
         )
         print("Return: {:.2f}%".format(100 * self.geometric_mean(opt.x)))
@@ -324,27 +392,24 @@ class Optimizer:
                         for name, weight in zip(self.asset_classes, opt.x)]))
 
 
-    def maximize_gmean(
+    def maximize_gmean_below_uncertainty(
             self,
             max_stdev=None,
             max_leverage=None,
             shorts_allowed=True,
             exogenous_portfolio_weight=0,
-            borrowing_costs_enabled=False
     ):
-        '''max_stdev should be provided as a percentage.
-
-        Unlike `mvo`, you may provide both a max_stdev and a max_leverage.
-
-        TODO: I'm not sure leverage constraints are implemented correctly. Need to
-        test them.
         '''
+        Find the average portfolio over a Monte Carlo sample of optimal portfolios,
+        rather than the optimal portfolio over a Monte Carlo sample.
+        '''
+        # TODO: refactor this function, it's almost exactly the same as `maximize_gmean`
         # If you short $1, you need to hold this much in cash, and you can invest the rest
         short_margin_requirement = 1.0 / 2
         endogenous_prop = 1 - exogenous_portfolio_weight
 
         leverage_constraint = optimize.LinearConstraint(
-            [1 for _ in self.means],
+            [1 for _ in self.asset_classes],
             lb=endogenous_prop, ub=np.inf
         )
         variance_constraint = self.NO_CONSTRAINT
@@ -352,9 +417,9 @@ class Optimizer:
 
         if not shorts_allowed:
             shorts_constraint = optimize.LinearConstraint(
-                np.identity(len(self.means)),  # identity matrix
-                lb=[0 for _ in self.means],
-                ub=[np.inf for _ in self.means]
+                np.identity(len(self.asset_classes)),  # identity matrix
+                lb=[0 for _ in self.asset_classes],
+                ub=[np.inf for _ in self.asset_classes]
             )
         elif max_leverage is not None:
             shorts_constraint = optimize.NonlinearConstraint(
@@ -382,14 +447,127 @@ class Optimizer:
             weights2 = [w for w in weights]
             weights2[0] += exogenous_portfolio_weight
             return -self.geometric_mean(
-                weights2, borrowing_costs(borrowing_costs_enabled, weights, scale=endogenous_prop))
+                weights2, self.borrowing_costs(weights, scale=endogenous_prop))
+
+        num_samples = 5000
+        param_uncertainty = 0.2
+        accum_weights = np.array([0.0 for _ in self.asset_classes])
+        saved_means = self.means
+        for i in range(num_samples):
+            self.means = [np.random.normal(mean, param_uncertainty * mean) for mean in saved_means]
+            opt = optimize.minimize(
+                optimand,
+                x0=[0.01 for _ in self.asset_classes],
+                constraints=[leverage_constraint, shorts_constraint, variance_constraint]
+            )
+            accum_weights += opt.x
+
+        optimal_weights = accum_weights / num_samples
+        personal_weights = [weight / endogenous_prop for weight in optimal_weights]
+
+        personal_stdev = np.sqrt(np.dot(np.dot(self.covariances, personal_weights), personal_weights))
+
+        # see https://en.wikipedia.org/wiki/Covariance#Covariance_of_linear_combinations
+        # Assumes first element of list is the market
+        correl_with_market = (
+            [w * self.covariances[i][0] for (i, w) in enumerate(personal_weights)]
+            / (personal_stdev * np.sqrt(self.covariances[0][0]))
+        )
+
+        print("| Allocation | |")
+        print("|-|-|")
+        print("\n".join(["| {} | {:.0f}% |".format(name, 100 * weight / endogenous_prop)
+                        for name, weight in zip(self.asset_classes, optimal_weights)]))
+        print()
+        print("| Summary Statistics | |")
+        print("|-|-|")
+        print("| Total Altruistic Return | {:.2f}% |".format(100 * -optimand(optimal_weights)))
+        print("| Personal Return | {:.2f}% |".format(
+            100 * self.geometric_mean(
+                personal_weights, self.borrowing_costs(personal_weights, scale=1))))
+        print("| Personal Standard Deviation | {:.2f}% |".format(
+            100 * personal_stdev
+        ))
+        print("| Personal Correlation to Market | {:.2f} |".format(correl_with_market))
+        print()
+
+    def maximize_gmean(
+            self,
+            max_stdev=None,
+            max_leverage=None,
+            shorts_allowed=True,
+            exogenous_portfolio_weight=0,
+            exogenous_weights=[1, 0, 0, 0],
+    ):
+        '''max_stdev should be provided as a percentage.
+
+        Unlike `mvo`, you may provide both a max_stdev and a max_leverage.
+        '''
+        # If you short $1, you need to hold this much in cash, and you can invest the rest
+        short_margin_requirement = 1.0 / 2
+        endogenous_prop = 1 - exogenous_portfolio_weight
+
+        leverage_constraint = optimize.LinearConstraint(
+            [1 for _ in self.asset_classes],
+            lb=endogenous_prop, ub=np.inf
+        )
+        variance_constraint = self.NO_CONSTRAINT
+        shorts_constraint = self.NO_CONSTRAINT
+
+        if not shorts_allowed:
+            shorts_constraint = optimize.LinearConstraint(
+                np.identity(len(self.asset_classes)),  # identity matrix
+                lb=[0 for _ in self.asset_classes],
+                ub=[np.inf for _ in self.asset_classes]
+            )
+        elif max_leverage is not None:
+            shorts_constraint = optimize.NonlinearConstraint(
+                lambda weights: sum([min(x, 0) for x in weights]),
+                lb=-endogenous_prop, ub=0
+            )
+
+        if max_leverage is not None:
+            overall_max_leverage = max_leverage * endogenous_prop
+            leverage_constraint = optimize.NonlinearConstraint(
+                lambda weights: sum([x if x > 0 else x * (1 - short_margin_requirement)
+                                    for x in weights]),
+                lb=endogenous_prop, ub=overall_max_leverage
+            )
+
+        if max_stdev is not None:
+            max_stdev /= 100  # convert from percentage to proportion
+            max_stdev *= endogenous_prop
+            variance_constraint = optimize.NonlinearConstraint(
+                lambda weights: np.dot(np.dot(self.covariances, weights), weights),
+                lb=0, ub=max_stdev**2
+            )
+
+        def optimand(weights):
+            weights2 = [w for w in weights]
+            for i in range(len(weights2)):
+                weights2[i] += exogenous_portfolio_weight * exogenous_weights[i]
+            return -self.geometric_mean(
+                weights2, self.borrowing_costs(weights, scale=endogenous_prop))
 
         opt = optimize.minimize(
             optimand,
-            x0=[0.01 for _ in self.means],
+            x0=[0.01 for _ in self.asset_classes],
             constraints=[leverage_constraint, shorts_constraint, variance_constraint]
         )
+
         personal_weights = [weight / endogenous_prop for weight in opt.x]
+
+        personal_stdev = np.sqrt(np.dot(np.dot(self.covariances, personal_weights), personal_weights))
+
+        # see https://en.wikipedia.org/wiki/Covariance#Covariance_of_linear_combinations
+        # Assumes first element of list is the market
+        correl_with_market = (
+            sum(wi * wj * self.covariances[i][j]
+                for (i, wi) in enumerate(personal_weights)
+                for (j, wj) in enumerate(exogenous_weights))
+            / (personal_stdev * np.sqrt(np.dot(np.dot(self.covariances, exogenous_weights), exogenous_weights)))
+        )
+
         print("| Allocation | |")
         print("|-|-|")
         print("\n".join(["| {} | {:.0f}% |".format(name, 100 * weight / endogenous_prop)
@@ -400,15 +578,19 @@ class Optimizer:
         print("| Total Altruistic Return | {:.2f}% |".format(100 * -optimand(opt.x)))
         print("| Personal Return | {:.2f}% |".format(
             100 * self.geometric_mean(
-                personal_weights, borrowing_costs(borrowing_costs_enabled, personal_weights, scale=1))))
+                personal_weights, self.borrowing_costs(personal_weights, scale=1))))
         print("| Personal Standard Deviation | {:.2f}% |".format(
-            100 * np.sqrt(np.dot(np.dot(self.covariances, personal_weights), personal_weights))
+            100 * personal_stdev
         ))
+        print("| Personal Correlation to Market | {:.2f} |".format(correl_with_market))
         print()
 
-
 Optimizer(
-    my_favorite_data
+    my_favorite_data,
+    short_cost=0.25,
+    leverage_cost=1,
 ).maximize_gmean(
-    max_stdev=30, exogenous_portfolio_weight=0.99, borrowing_costs_enabled=True
+    max_stdev=20,
+    exogenous_portfolio_weight=0.99,
+    exogenous_weights=[1, 0, 0, 0, 0],
 )
