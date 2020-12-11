@@ -170,7 +170,7 @@ mini_rafi_data = dict(
     asset_classes = [
         "US Market", "Global ex-US", "Commodities", "Intermediate Bonds"
     ],
-    means  = [ 5,  5,  1, -1],
+    means  = [ 0,  5,  1, -1],
     stdevs = [16, 17, 16,  4],
     correlations = [
         [ 1                   ],
@@ -590,7 +590,7 @@ Optimizer(
     short_cost=0.25,
     leverage_cost=1,
 ).maximize_gmean(
-    max_stdev=20,
+    max_stdev=30,
     exogenous_portfolio_weight=0.99,
     exogenous_weights=[1, 0, 0, 0, 0],
 )

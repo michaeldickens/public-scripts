@@ -240,10 +240,10 @@ if __name__ == "__main__":
     expected_sell_price = 30  # arithmetic mean
     affirm_volatility = 0.60
     relative_risk_aversion = 1.5
-    strike_price = 1.68
-    valuation = 15.38
     years_to_liquidity = 0.6
     current_tax_rate = 0.4865
+    strike_price = 1.30  # fake numbers
+    valuation = 15.00
 
     # TODO: This is wrong in a way that seems like it matters. Savings isn't a
     # log-normal distribution with mean savings_later/spending_now. It's a
