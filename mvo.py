@@ -10,6 +10,7 @@ Created: 2020-10-05
 
 from pprint import pprint
 
+from matplotlib import pyplot
 import numpy as np
 from scipy import optimize
 
@@ -498,6 +499,7 @@ class Optimizer:
             shorts_allowed=True,
             exogenous_portfolio_weight=0,
             exogenous_weights=[1, 0, 0, 0],
+            verbose=True,
     ):
         '''max_stdev should be provided as a percentage.
 
@@ -568,29 +570,91 @@ class Optimizer:
             / (personal_stdev * np.sqrt(np.dot(np.dot(self.covariances, exogenous_weights), exogenous_weights)))
         )
 
-        print("| Allocation | |")
-        print("|-|-|")
-        print("\n".join(["| {} | {:.0f}% |".format(name, 100 * weight / endogenous_prop)
-                        for name, weight in zip(self.asset_classes, opt.x)]))
-        print()
-        print("| Summary Statistics | |")
-        print("|-|-|")
-        print("| Total Altruistic Return | {:.2f}% |".format(100 * -optimand(opt.x)))
-        print("| Personal Return | {:.2f}% |".format(
-            100 * self.geometric_mean(
-                personal_weights, self.borrowing_costs(personal_weights, scale=1))))
-        print("| Personal Standard Deviation | {:.2f}% |".format(
-            100 * personal_stdev
-        ))
-        print("| Personal Correlation to Market | {:.2f} |".format(correl_with_market))
-        print()
+        if verbose:
+            print("| Allocation | |")
+            print("|-|-|")
+            print("\n".join(["| {} | {:.0f}% |".format(name, 100 * weight / endogenous_prop)
+                            for name, weight in zip(self.asset_classes, opt.x)]))
+            print()
+            print("| Summary Statistics | |")
+            print("|-|-|")
+            print("| Total Altruistic Return | {:.2f}% |".format(100 * -optimand(opt.x)))
+            print("| Personal Return | {:.2f}% |".format(
+                100 * self.geometric_mean(
+                    personal_weights, self.borrowing_costs(personal_weights, scale=1))))
+            print("| Personal Standard Deviation | {:.2f}% |".format(
+                100 * personal_stdev
+            ))
+            print("| Personal Correlation to Market | {:.2f} |".format(correl_with_market))
+            print()
 
-Optimizer(
-    my_favorite_data,
-    short_cost=0.25,
-    leverage_cost=1,
-).maximize_gmean(
-    max_stdev=30,
-    exogenous_portfolio_weight=0.99,
-    exogenous_weights=[1, 0, 0, 0, 0],
-)
+        return personal_weights
+
+
+def optimize_three_assets(hi_ret_mean, lo_correl_correl):
+    three_assets = dict(
+        asset_classes = [
+            "Market", "Hi Return", "Lo Correlation"
+        ],
+        means  = [ 3,  hi_ret_mean,  3],
+        stdevs = [16,           16, 16],
+        correlations = [
+            [1   ],
+            [1, 1],
+            [lo_correl_correl, lo_correl_correl, 1],
+        ]
+    )
+
+    weights = Optimizer(
+        three_assets,
+        short_cost=0.00,
+        leverage_cost=0,
+    ).maximize_gmean(
+        max_leverage=1,
+        shorts_allowed=False,
+        exogenous_portfolio_weight=0.99,
+        exogenous_weights=[1, 0, 0],
+        verbose=False,
+    )
+
+    return weights
+
+
+def positive_efficient_frontier(lo_correl_correl):
+    def allocation_balance(hi_ret_mean):
+        weights = optimize_three_assets(hi_ret_mean, lo_correl_correl)
+        return weights[1] - weights[2]
+
+
+    def find_efficient_frontier(lo_mean, hi_mean):
+        # binary search
+        if hi_mean - lo_mean < 0.0001:
+            return hi_mean
+        mid_mean = (lo_mean + hi_mean) / 2
+        mid_balance = allocation_balance(mid_mean)
+        if mid_balance > 0:
+            return find_efficient_frontier(lo_mean, mid_mean)
+        elif mid_balance < 0:
+            return find_efficient_frontier(mid_mean, hi_mean)
+        else:
+            return mid_mean
+
+    return find_efficient_frontier(0, 20)
+
+
+correls = []
+means = []
+
+for i in range(101):
+    correl = i / 100.0
+    mean = positive_efficient_frontier(correl)
+    correls.append(correl)
+    means.append(mean)
+    print("{}\t{}".format(correl, mean))
+    # print("{}: {}".format(mean, optimize_three_assets(mean, correl)))
+
+# TODO: instead of a three-asset portfolio, do a two-asset portfolio where you target a certain geometric mean, and find the asset return for any given correlation that achieves that geometric mean. this is equivalent, but more intuitive (simpler, and produces a downward-sloping graph instead of upward)
+
+# TODO: make graph better...set axes and stuff
+pyplot.plot(correls, means)
+pyplot.savefig("poop.png")
