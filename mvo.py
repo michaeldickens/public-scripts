@@ -10,7 +10,7 @@ Created: 2020-10-05
 
 from pprint import pprint
 
-from matplotlib import pyplot
+from matplotlib import pyplot, ticker
 import numpy as np
 from scipy import optimize
 
@@ -591,70 +591,55 @@ class Optimizer:
         return personal_weights
 
 
-def optimize_three_assets(hi_ret_mean, lo_correl_correl):
-    three_assets = dict(
+def two_asset_gmean(hi_ret_mean, lo_correl_correl):
+    two_assets = dict(
         asset_classes = [
-            "Market", "Hi Return", "Lo Correlation"
+            "Market", "My Asset"
         ],
-        means  = [ 3,  hi_ret_mean,  3],
-        stdevs = [16,           16, 16],
+        means  = [ 3,  hi_ret_mean],
+        stdevs = [16,           16],
         correlations = [
             [1   ],
-            [1, 1],
-            [lo_correl_correl, lo_correl_correl, 1],
+            [lo_correl_correl, 1],
         ]
     )
 
-    weights = Optimizer(
-        three_assets,
-        short_cost=0.00,
-        leverage_cost=0,
-    ).maximize_gmean(
-        max_leverage=1,
-        shorts_allowed=False,
-        exogenous_portfolio_weight=0.99,
-        exogenous_weights=[1, 0, 0],
-        verbose=False,
+    optimizer = Optimizer(two_assets)
+    return optimizer.geometric_mean([0.99, 0.01])
+
+
+def efficient_frontier(lo_correl_correl):
+    target_gmean = two_asset_gmean(7, 0.5)
+
+    def optimand(input_fields):
+        hi_ret_mean = input_fields[0]
+        gmean = two_asset_gmean(hi_ret_mean, lo_correl_correl)
+        # multiply by a large number b/c the unscaled number is small enough
+        # that scipy's optimizer will prematurely terminate
+        return (1000000 * (gmean - target_gmean))**2
+
+    opt = optimize.minimize(
+        optimand,
+        x0=[1.0]
     )
 
-    return weights
-
-
-def positive_efficient_frontier(lo_correl_correl):
-    def allocation_balance(hi_ret_mean):
-        weights = optimize_three_assets(hi_ret_mean, lo_correl_correl)
-        return weights[1] - weights[2]
-
-
-    def find_efficient_frontier(lo_mean, hi_mean):
-        # binary search
-        if hi_mean - lo_mean < 0.0001:
-            return hi_mean
-        mid_mean = (lo_mean + hi_mean) / 2
-        mid_balance = allocation_balance(mid_mean)
-        if mid_balance > 0:
-            return find_efficient_frontier(lo_mean, mid_mean)
-        elif mid_balance < 0:
-            return find_efficient_frontier(mid_mean, hi_mean)
-        else:
-            return mid_mean
-
-    return find_efficient_frontier(0, 20)
+    return opt.x[0]
 
 
 correls = []
 means = []
 
-for i in range(101):
+for i in range(0, 101):
     correl = i / 100.0
-    mean = positive_efficient_frontier(correl)
+    mean = efficient_frontier(correl)
     correls.append(correl)
     means.append(mean)
-    print("{}\t{}".format(correl, mean))
-    # print("{}: {}".format(mean, optimize_three_assets(mean, correl)))
 
-# TODO: instead of a three-asset portfolio, do a two-asset portfolio where you target a certain geometric mean, and find the asset return for any given correlation that achieves that geometric mean. this is equivalent, but more intuitive (simpler, and produces a downward-sloping graph instead of upward)
-
-# TODO: make graph better...set axes and stuff
-pyplot.plot(correls, means)
-pyplot.savefig("poop.png")
+fig = pyplot.figure()
+ax = fig.add_subplot()
+ax.plot(correls, means)
+ax.set_xlabel("Correlation")
+ax.set_ylabel("Geometric Mean")
+ax.set_ylim([0, max(means) * 1.1])
+ax.yaxis.set_major_formatter(ticker.PercentFormatter())
+pyplot.savefig("/tmp/efficient-frontier.png")
