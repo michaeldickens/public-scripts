@@ -177,7 +177,7 @@ mini_rafi_data = dict(
         [ 1                   ],
         [ 0.9,  1             ],
         [ 0.3,  0.4,  1       ],
-        [-0.3, -0.3, -0.1,  1 ],
+        [-0.3, -0.3, -0.1, 1  ]
     ]
 )
 
@@ -609,13 +609,13 @@ def two_asset_gmean(hi_ret_mean, lo_correl_correl):
 
 
 def efficient_frontier(lo_correl_correl):
-    target_gmean = two_asset_gmean(7, 0.5)
+    target_gmean = two_asset_gmean(3, 1)
 
     def optimand(input_fields):
         hi_ret_mean = input_fields[0]
         gmean = two_asset_gmean(hi_ret_mean, lo_correl_correl)
         # multiply by a large number b/c the unscaled number is small enough
-        # that scipy's optimizer will prematurely terminate
+        # that scipy's optimizer will terminate prematurely
         return (1000000 * (gmean - target_gmean))**2
 
     opt = optimize.minimize(
@@ -626,20 +626,39 @@ def efficient_frontier(lo_correl_correl):
     return opt.x[0]
 
 
-correls = []
-means = []
+def find_efficient_frontier():
+    correls = []
+    means = []
 
-for i in range(0, 101):
-    correl = i / 100.0
-    mean = efficient_frontier(correl)
-    correls.append(correl)
-    means.append(mean)
+    for i in range(-100, 101):
+        correl = i / 100.0
+        mean = efficient_frontier(correl)
+        correls.append(correl)
+        means.append(mean)
 
-fig = pyplot.figure()
-ax = fig.add_subplot()
-ax.plot(correls, means)
-ax.set_xlabel("Correlation")
-ax.set_ylabel("Geometric Mean")
-ax.set_ylim([0, max(means) * 1.1])
-ax.yaxis.set_major_formatter(ticker.PercentFormatter())
-pyplot.savefig("/tmp/efficient-frontier.png")
+    slope = (means[-1] - means[0]) / (correls[-1] - correls[0])
+    print(means[0])
+    print(means[-1])
+    print("Slope:", slope)
+
+    fig = pyplot.figure()
+    ax = fig.add_subplot()
+    ax.plot(correls, means)
+    ax.set_xlabel("Correlation")
+    ax.set_ylabel("Return")
+    ax.set_ylim([min(0, min(means) * 1.1), max(means) * 1.1])
+    ax.set_title("Return/Correlation to Equal VMOT")
+    ax.yaxis.set_major_formatter(ticker.PercentFormatter())
+    pyplot.savefig("/tmp/return-correlation-tradeoff.png")
+
+
+Optimizer(
+    mini_rafi_data,
+    leverage_cost=0,
+    short_cost=0,
+).maximize_gmean(
+    max_stdev=20,
+    exogenous_portfolio_weight=0.99,
+    exogenous_weights=[0.6, 0.2, 0, 0.2],
+    verbose=True,
+)
