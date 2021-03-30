@@ -142,15 +142,62 @@ def optimize_single_period_no_present_consumption(p, delta_f, r, eta, budget, ma
     print(opt)
 
 
-optimize_single_period_no_present_consumption(
-    # assumes a period is a century
-    p=0.1,
-    delta_f=0.0001,
-    r=100 * 0.03,
-    eta=1,
-    budget=100,
-    magic_risk_vanish=False,
-)
+def optimize_n_periods(num_periods, r, eta, pure_discount, epsilon, beta, years_per_period=100):
+    def utility_fn(xs):
+        c = [xs[2*i] for i in range(num_periods)]
+        s = [xs[2*i + 1] for i in range(num_periods)]
+
+        # scale by investment return
+        for i in range(1, num_periods):
+            c[i] *= (1 + r)**(i * years_per_period)
+            s[i] *= (1 + r)**(i * years_per_period)
+
+        # utility_floor = -utility_of_consumption(eta, 0.01)
+        utility_floor = 0
+
+        # Note: This doesn't really make sense because higher consumption at
+        # time t decreases the probability of there being consumption at time
+        # t. First one should really be t-1 instead, but then the two-period
+        # model is too sparse
+        initial_x_risk = 0.001
+        x_risk = [
+            min(1, initial_x_risk * sum(c[0:(i+1)])**epsilon * sum(s[0:(i+1)])**beta)
+            for i in range(num_periods)
+        ]
+
+        return sum([
+            np.product([
+                ((1 - pure_discount) * (1 - x_risk[j]))**years_per_period
+                for j in range(i+1)
+            ])
+            * (utility_of_consumption(eta, c[i]) + utility_floor)
+            for i in range(num_periods)
+        ])
+
+    bounds_constraint = optimize.LinearConstraint(
+        np.identity(2 * num_periods),  # identity matrix
+        lb=[0.0, 0] * num_periods,
+        ub=[1] * (2 * num_periods),
+    )
+
+    sum_constraint = optimize.LinearConstraint(
+        np.array([1] * (2 * num_periods)),
+        lb=0,
+        ub=1,
+    )
+
+    opt = optimize.minimize(
+        lambda xs: -utility_fn(xs),
+        x0=np.array([1.0 / (2 * num_periods)] * (2 * num_periods)),
+        constraints=[bounds_constraint, sum_constraint],
+    )
+    print(opt)
+
+
+optimize_n_periods(2, r=0.05, eta=1.5, pure_discount=0.01, epsilon=0.5, beta=0.7)
+print("\n")
+optimize_n_periods(2, r=0.05, eta=1.5, pure_discount=0.00001, epsilon=0.5, beta=0.7)
+
 
 # Some observations:
 # 1. present consumption always goes close to 0 (hence why I wrote a new function to ignore it)

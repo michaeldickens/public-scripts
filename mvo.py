@@ -218,6 +218,69 @@ my_favorite_data = dict(
     ]
 )
 
+daf_data = dict(
+    asset_classes = [
+        # Market: global equities
+        # VMOT: VMOT
+        # Deep Value/Momentum: highly concentrated small-cap value/momentum
+        # ManFut: managed futures, like AQR Time Series Momentum data set
+        # GVAL: cheap stocks in cheap countries, like GVAL
+        "Deep Value", "Deep Momentum", "VMOT", "ManFut", "GVAL", "Market"
+    ],
+    means  = [ 7,  5,  6,  3,  7,  3],
+    stdevs = [25, 22, 13, 15, 22, 16],
+    correlations = [
+        [ 1                           ],
+        [-0.3,  1                     ],
+        [ 0.7,  0.7, 1                ],
+        [ 0  ,  0  , 0.2, 1           ],
+        [ 0.8, -0.2, 0.6, 0  , 1      ],
+        [ 0.8,  0.8, 0.5, 0  , 0.8,  1],
+    ]
+)
+
+fb_data = dict(
+    asset_classes = [
+        # VMOT: VMOT
+        # ManFut: managed futures, like AQR Time Series Momentum data set
+        "VMOT", "ManFut", "FB"
+    ],
+    means  = [ 6,  3, -6],
+    stdevs = [13, 15, 35],
+    correlations = [
+        [ 1           ],
+        [ 0.2,  1     ],
+        [ 0.3,  0.0, 1],
+    ]
+)
+
+
+fb_gmp_data = dict(
+    asset_classes = [
+        # GMP: global market portfolio
+        "GMP", "FB"
+    ],
+    means  = [ 3, -6],
+    stdevs = [10, 35],
+    correlations = [
+        [ 1      ],
+        [ 0.5,  1],
+    ]
+)
+
+fb_data_complex = dict(
+    asset_classes = [
+        "US", "Global ex-US", "FB"
+    ],
+    means  = [ 2,  5, -6],
+    stdevs = [16, 17, 35],
+    correlations = [
+        [ 1           ],
+        [ 0.9,  1     ],
+        [ 0.5,  0.4, 1],
+    ]
+)
+
 
 class Optimizer:
     def __init__(self, asset_data_to_use, short_cost=0, leverage_cost=0):
@@ -591,23 +654,6 @@ class Optimizer:
         return personal_weights
 
 
-def two_asset_gmean(hi_ret_mean, lo_correl_correl):
-    two_assets = dict(
-        asset_classes = [
-            "Market", "My Asset"
-        ],
-        means  = [ 3,  hi_ret_mean],
-        stdevs = [16,           16],
-        correlations = [
-            [1   ],
-            [lo_correl_correl, 1],
-        ]
-    )
-
-    optimizer = Optimizer(two_assets)
-    return optimizer.geometric_mean([0.99, 0.01])
-
-
 def efficient_frontier(lo_correl_correl):
     target_gmean = two_asset_gmean(3, 1)
 
@@ -641,6 +687,7 @@ def find_efficient_frontier():
     print(means[-1])
     print("Slope:", slope)
 
+
     fig = pyplot.figure()
     ax = fig.add_subplot()
     ax.plot(correls, means)
@@ -653,12 +700,13 @@ def find_efficient_frontier():
 
 
 Optimizer(
-    mini_rafi_data,
-    leverage_cost=0,
-    short_cost=0,
+    fb_data_complex,
+    leverage_cost=1,
+    short_cost=0.25,
 ).maximize_gmean(
-    max_stdev=20,
+    max_leverage=None,
+    max_stdev=25,
+    shorts_allowed=True,
     exogenous_portfolio_weight=0.99,
-    exogenous_weights=[0.6, 0.2, 0, 0.2],
-    verbose=True,
+    exogenous_weights=[0.5, 0, 0.5],
 )

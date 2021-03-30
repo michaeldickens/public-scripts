@@ -37,7 +37,7 @@ class LeverageEnvironment:
         # mean and standard deviation of a normal random variable scale linearly
         # when multiplied by a constant
 
-        # mu = median / geometric mean
+        # mu = median or geometric mean
         # mu could also be written as leverage * self.alpha - sigma**2/2
         mu = leverage * self.mu - leverage * (leverage - 1) * self.sigma**2 / 2
         sigma = leverage * self.sigma
@@ -47,10 +47,15 @@ class LeverageEnvironment:
         # http://web.stanford.edu/class/cme241/lecture_slides/UtilityTheoryForRisk.pdf
         # Expected utility follows from these two facts:
         # 1. k * Lognorm(mu, sigma) = Lognorm(mu + log k, sigma)
-        # 2. E[Lognorm(mu, sigma)^n] = exp(n*mu + n^2*mu^2 / 2)
+        # 2. E[Lognorm(mu, sigma)^n] = exp(n*mu + n^2*sigma^2 / 2)
         if self.rra == 1:
             return mu + np.log(starting_capital)
-        return (np.exp((mu + np.log(starting_capital)) * (1 - self.rra) + sigma**2/2 * (1 - self.rra)**2) - 1) / (1 - self.rra)
+        return (
+            np.exp(
+                (mu + np.log(starting_capital)) * (1 - self.rra)
+                + sigma**2/2 * (1 - self.rra)**2
+            ) - 1
+        ) / (1 - self.rra)
 
     def expected_utility_old(self, leverage, starting_capital=1):
         # mean and standard deviation of a normal random variable scale linearly
@@ -112,7 +117,8 @@ class LeverageEnvironment:
         If leverage is not specified, use optimal leverage.
 
         Alternatively, can compute analytically:
-        Certainty Equivalent = (leverage * mean) - (leverage * sigma)**2/2 * rra
+        Certainty Equivalent = (leverage * alpha) - (leverage * sigma)**2/2 * rra
+        (alpha is log of arithmetic mean)
         See slide 12 of
         http://web.stanford.edu/class/cme241/lecture_slides/UtilityTheoryForRisk.pdf
         '''
@@ -263,16 +269,23 @@ if __name__ == "__main__":
 
     print("If you invest cash:")
     market_res = LeverageEnvironment(
-        rra=relative_risk_aversion, mu=0.06, sigma=0.13
-    ).certainty_equivalent_return(leverage=1.5)
+        rra=relative_risk_aversion, mu=0.033, sigma=0.094
+    ).certainty_equivalent_return(leverage=0.1)
     print(market_res)
 
-    print("If you spend cash to exercise:")
-    exercise_res = LeverageEnvironment(
-        rra=relative_risk_aversion,
-        mu=return_to_exercise - (affirm_volatility**2)/2,
-        sigma=affirm_volatility
+    print("If you hold AFRM:")
+    afrm_res = LeverageEnvironment(
+        # rra=relative_risk_aversion, mu=0.15 - affirm_volatility**2 / 2, sigma=affirm_volatility
+        rra=relative_risk_aversion, mu=0.04 - 0.35**2 / 2, sigma=0.35
     ).certainty_equivalent_return(leverage=1)
-    print(exercise_res)
+    print(afrm_res)
 
-    print("Should exercise?", "YES" if exercise_res['utility'] > market_res['utility'] else "NO")
+    # print("If you spend cash to exercise:")
+    # exercise_res = LeverageEnvironment(
+    #     rra=relative_risk_aversion,
+    #     mu=return_to_exercise - (affirm_volatility**2)/2,
+    #     sigma=affirm_volatility
+    # ).certainty_equivalent_return(leverage=1)
+    # print(exercise_res)
+
+    # print("Should exercise?", "YES" if exercise_res['utility'] > market_res['utility'] else "NO")
