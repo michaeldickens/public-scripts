@@ -29,6 +29,9 @@ cg_tax_rate = 0.20
 
 
 def run_conventional(donation_prop, market_rets, volatile_asset_rets):
+    """Simulate the behavior of a conventional investment where you buy the market,
+    donate some each year, and sell + pay taxes at the end.
+    """
     core_holding_gain = reduce(lambda accum, ret: accum * (1 + ret), market_rets, 1)
     cap_gain_prop = (core_holding_gain - 1) / core_holding_gain
 
@@ -48,6 +51,13 @@ def run_conventional(donation_prop, market_rets, volatile_asset_rets):
 
 
 def run_donation_trick(donation_trick_prop, market_rets, volatile_asset_rets):
+    """Simulate the behavior of the donation trick:
+
+    1. Invest your core holding in the market.
+    2. With some of your money, go long and short the same volatile asset.
+       Donate whichever one goes up, and sell whichever one goes down,
+       accumulating capital losses.
+    3. At the end, sell the core holding and pay taxes."""
     total_donation = 0
     core_holding_size = 1
     market_price = 1
@@ -109,6 +119,8 @@ def run_donation_trick(donation_trick_prop, market_rets, volatile_asset_rets):
 
 
 def value_to_preserve_wealth(returns_dict, holding_years, step_fun):
+    """Find how much to donate each year to make your wealth stay stable on
+    average."""
     def expected_wealth_growth(arg_array):
         total_growth = 0
         for start_date in returns_dict:
@@ -165,6 +177,8 @@ def donation_trick_ev(returns_dict, holding_years):
 
 
 def simulated_sample():
+    # Note: I wrote this function when I had different plans for how to
+    # simulate. I'm not using it right now, but I might use it later.
     sigma = 0.16
     mu = 0.05
     leverage = 3
