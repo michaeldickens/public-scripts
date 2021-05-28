@@ -267,18 +267,20 @@ if __name__ == "__main__":
         savings_later = (expected_sell_price - valuation) * (0.123 + 0.0235)
     return_to_exercise = (1 + savings_later / spending_now)**(1/years_to_liquidity) - 1
 
-    print("If you invest cash:")
-    market_res = LeverageEnvironment(
-        rra=relative_risk_aversion, mu=0.033, sigma=0.094
-    ).certainty_equivalent_return(leverage=0.1)
-    print(market_res)
+    # print("If you invest cash:")
+    # market_res = LeverageEnvironment(
+    #     rra=relative_risk_aversion, mu=0.033, sigma=0.094
+    # ).certainty_equivalent_return(leverage=0.1)
+    # print(market_res)
 
-    print("If you hold AFRM:")
-    afrm_res = LeverageEnvironment(
-        # rra=relative_risk_aversion, mu=0.15 - affirm_volatility**2 / 2, sigma=affirm_volatility
-        rra=relative_risk_aversion, mu=0.04 - 0.35**2 / 2, sigma=0.35
-    ).certainty_equivalent_return(leverage=1)
-    print(afrm_res)
+    # print("If you hold AFRM:")
+    # afrm_res = LeverageEnvironment(
+    #     # rra=relative_risk_aversion, mu=0.15 - affirm_volatility**2 / 2, sigma=affirm_volatility
+    #     rra=relative_risk_aversion, mu=0.04 - 0.35**2 / 2, sigma=0.35
+    # ).certainty_equivalent_return(leverage=1)
+    # print(afrm_res)
+
+    print(LeverageEnvironment(rra=2, mu=0.1, sigma=0.16).certainty_equivalent_return(leverage=1))
 
     # print("If you spend cash to exercise:")
     # exercise_res = LeverageEnvironment(

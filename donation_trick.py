@@ -1,4 +1,5 @@
 import csv
+from multiprocessing import Pool
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from functools import reduce
@@ -58,6 +59,8 @@ def run_donation_trick(donation_trick_prop, market_rets, volatile_asset_rets):
        Donate whichever one goes up, and sell whichever one goes down,
        accumulating capital losses.
     3. At the end, sell the core holding and pay taxes."""
+    overhead_cost = 0.00
+
     total_donation = 0
     core_holding_size = 1
     market_price = 1
@@ -94,8 +97,8 @@ def run_donation_trick(donation_trick_prop, market_rets, volatile_asset_rets):
             volatile_holding_size = (loser + sale_size) / 2
             cap_loss -= cap_gain_prop * sale_size
 
-        volatile_asset_long = volatile_holding_size * (1 + volatile_asset_ret)
-        volatile_asset_short = volatile_holding_size * (1 - volatile_asset_ret)
+        volatile_asset_long = volatile_holding_size * (1 + volatile_asset_ret - overhead_cost)
+        volatile_asset_short = volatile_holding_size * (1 - volatile_asset_ret - overhead_cost)
         winner = max(volatile_asset_long, volatile_asset_short)
         loser = min(volatile_asset_long, volatile_asset_short)
 
@@ -150,30 +153,109 @@ def value_to_preserve_wealth(returns_dict, holding_years, step_fun):
     return opt.x[0]
 
 
-def donation_trick_ev(returns_dict, holding_years):
+def donation_trick_ev(
+        returns_dict, holding_years, conventional_donation_prop=None, donation_trick_prop=None,
+        verbose=True
+):
     # Assume core holding starts with a 0% capital gain.
-    conventional_donation_prop = value_to_preserve_wealth(
-        returns_dict, holding_years, run_conventional)
-    donation_trick_prop = value_to_preserve_wealth(
-        returns_dict, holding_years, run_donation_trick)
-    print("conventional prop: {:.1f}%".format(100 * conventional_donation_prop))
-    print("volatile prop    : {:.1f}%".format(100 * donation_trick_prop))
 
-    total_conventional_donation = 0
-    total_trick_donation = 0
+    if conventional_donation_prop is None and donation_trick_prop is None:
+        # Calculate the ex-post optimal donation proportion for both
+        # conventional investing and the donation trick. "Optimal" is the
+        # proportion that preserves wealth on average.
+        conventional_donation_prop = value_to_preserve_wealth(
+            returns_dict, holding_years, run_conventional)
+        donation_trick_prop = value_to_preserve_wealth(
+            returns_dict, holding_years, run_donation_trick)
+        if verbose:
+            print("conventional prop: {:.1f}%".format(100 * conventional_donation_prop))
+            print("volatile prop    : {:.1f}%".format(100 * donation_trick_prop))
+
+    elif conventional_donation_prop is None or donation_trick_prop is None:
+        raise ValueError(
+            "conventional_donation_prop and donation_trick_prop must both be None or non-None"
+        )
+
+    conventional_results = []
+    donation_trick_results = []
     for period in returns_dict:
         market_ret, volatile_asset_ret = returns_dict[period]
 
-
         # Ignore wealth growth b/c we chose donation_trick_prop to keep wealth stable
-        total_conventional_donation += run_conventional(conventional_donation_prop, [market_ret], [volatile_asset_ret])[0]
-        total_trick_donation += run_donation_trick(donation_trick_prop, [market_ret], [volatile_asset_ret])[0]
+        conventional_results.append(run_conventional(conventional_donation_prop, [market_ret], [volatile_asset_ret]))
+        donation_trick_results.append(run_donation_trick(donation_trick_prop, [market_ret], [volatile_asset_ret]))
 
-    average_conventional_donation = total_conventional_donation / len(returns_dict)
-    average_trick_donation = total_trick_donation / len(returns_dict)
+    average_conventional_donation = np.mean([pair[0] for pair in conventional_results])
+    average_trick_donation = np.mean([pair[0] for pair in donation_trick_results])
+    average_conventional_wealth = np.mean([pair[1] for pair in conventional_results])
+    average_trick_wealth = np.mean([pair[1] for pair in donation_trick_results])
 
-    print("avg conventional donation: {:.2f}%".format(100 * average_conventional_donation))
-    print("avg trick donation       : {:.2f}%".format(100 * average_trick_donation))
+    if verbose:
+        print("avg conventional donation: {:.2f}%".format(100 * average_conventional_donation))
+        print("avg trick donation       : {:.2f}%".format(100 * average_trick_donation))
+
+    return (
+        average_conventional_donation,
+        average_trick_donation,
+        average_conventional_wealth,
+        average_trick_wealth
+    )
+
+
+class PoolHelper:
+    """Python can't pass closures across a process pool, so I have to use this
+    helper class to store state.
+    """
+    def __init__(self, returns_dict, holding_years, fuzz_factor):
+        self.returns_dict = returns_dict
+        self.holding_years = holding_years
+        self.fuzz_factor = fuzz_factor
+        self.optimal_conventional_donation_prop = value_to_preserve_wealth(
+            returns_dict, holding_years, run_conventional)
+        self.optimal_donation_trick_prop = value_to_preserve_wealth(
+            returns_dict, holding_years, run_donation_trick)
+
+
+    def run_single_sim(self, ignore_me):
+        conventional_donation_prop = np.random.normal(
+            loc=self.optimal_conventional_donation_prop,
+            scale=self.fuzz_factor * self.optimal_conventional_donation_prop,
+        )
+        donation_trick_prop = np.random.normal(
+            loc=self.optimal_donation_trick_prop,
+            scale=self.fuzz_factor * self.optimal_donation_trick_prop,
+        )
+
+        return donation_trick_ev(
+            self.returns_dict, self.holding_years, conventional_donation_prop,
+            donation_trick_prop, verbose=False
+        )
+
+def donation_trick_ev_with_estimation_error(returns_dict, holding_years, fuzz_factor=0.2):
+    pool_helper = PoolHelper(returns_dict, holding_years, fuzz_factor)
+    with Pool() as pool:
+        # 100,000 iterations takes about 80 seconds (560 seconds of CPU time)
+        sim_results = list(pool.map(pool_helper.run_single_sim, range(100000)))
+
+    conventional_donation_ev = np.mean([pair[0] for pair in sim_results])
+    trick_donation_ev = np.mean([pair[1] for pair in sim_results])
+    conventional_wealth_ev = np.mean([pair[2] for pair in sim_results])
+    trick_wealth_ev = np.mean([pair[3] for pair in sim_results])
+
+    print("conventional donation EV: {:.2f}%".format(100 * conventional_donation_ev))
+    print("trick donation EV       : {:.2f}%".format(100 * trick_donation_ev))
+    print("conventional wealth EV: {:.2f}%".format(100 * conventional_wealth_ev))
+    print("trick wealth EV       : {:.2f}%".format(100 * trick_wealth_ev))
+
+    print("trick - conventional total: {:.3f}%".format(
+        100 * (
+            holding_years * (trick_donation_ev - conventional_donation_ev)
+            +
+            (trick_wealth_ev - conventional_wealth_ev)
+        )
+    ))
+
+    return (conventional_donation_ev, trick_donation_ev, conventional_wealth_ev, trick_wealth_ev)
 
 
 def simulated_sample():
@@ -248,4 +330,5 @@ class TestDonationTrick(unittest.TestCase):
 
 
 returns_dict = read_historical_data()
-donation_trick_ev(returns_dict, holding_years=10)
+# donation_trick_ev(returns_dict, holding_years=5)
+donation_trick_ev_with_estimation_error(returns_dict, holding_years=5)

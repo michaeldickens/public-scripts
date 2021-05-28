@@ -201,20 +201,20 @@ trend_overlay_data = dict(
 my_favorite_data = dict(
     asset_classes = [
         # Market: global equities
-        # Val/Mom: long-only value and momentum, like QVAL/QMOM/IVAL/IMOM
         # VMOT: VMOT
         # ManFut: managed futures, like AQR Time Series Momentum data set
         # GVAL: cheap stocks in cheap countries, like GVAL
-        "Market", "Val/Mom", "VMOT", "ManFut", "GVAL"
+        # crypto: market-neutral cryptocurrency trading
+        "Market", "VMOT", "ManFut", "GVAL", "crypto"
     ],
-    means  = [ 3,  6,  6,  3,  9],
-    stdevs = [16, 16, 13, 15, 22],
+    means  = [ 3,  6,  3,  9, 10],
+    stdevs = [16, 13, 15, 22,  8],
     correlations = [
-        [ 1                     ],
-        [ 0.8,  1               ],
-        [ 0.5,  0.8, 1          ],
-        [ 0  ,  0  , 0.2, 1     ],
-        [ 0.8,  0.8, 0.6, 0  , 1],
+        [ 1                      ],
+        [ 0.5,  1                ],
+        [ 0  ,  0.2, 1           ],
+        [ 0.8,  0.6, 0  , 1      ],
+        [-0.2,  0.1, 0.5, -0.2, 1],
     ]
 )
 
@@ -243,41 +243,15 @@ fb_data = dict(
     asset_classes = [
         # VMOT: VMOT
         # ManFut: managed futures, like AQR Time Series Momentum data set
-        "VMOT", "ManFut", "FB"
+        "VMOT", "ManFut", "FB", "crypto"
     ],
-    means  = [ 6,  3, -6],
-    stdevs = [13, 15, 35],
+    means  = [ 6,  3, -6,  40],
+    stdevs = [13, 15, 35, 100],
     correlations = [
         [ 1           ],
         [ 0.2,  1     ],
         [ 0.3,  0.0, 1],
-    ]
-)
-
-
-fb_gmp_data = dict(
-    asset_classes = [
-        # GMP: global market portfolio
-        "GMP", "FB"
-    ],
-    means  = [ 3, -6],
-    stdevs = [10, 35],
-    correlations = [
-        [ 1      ],
-        [ 0.5,  1],
-    ]
-)
-
-fb_data_complex = dict(
-    asset_classes = [
-        "US", "Global ex-US", "FB"
-    ],
-    means  = [ 2,  5, -6],
-    stdevs = [16, 17, 35],
-    correlations = [
-        [ 1           ],
-        [ 0.9,  1     ],
-        [ 0.5,  0.4, 1],
+        [ 0.5,  0.0, 0.8, 1],
     ]
 )
 
@@ -569,7 +543,7 @@ class Optimizer:
         Unlike `mvo`, you may provide both a max_stdev and a max_leverage.
         '''
         # If you short $1, you need to hold this much in cash, and you can invest the rest
-        short_margin_requirement = 1.0 / 2
+        short_margin_requirement = 0.50
         endogenous_prop = 1 - exogenous_portfolio_weight
 
         leverage_constraint = optimize.LinearConstraint(
@@ -653,6 +627,66 @@ class Optimizer:
 
         return personal_weights
 
+    def maximize_gmean_with_daf(self):
+        max_leverage = 2
+        short_margin_requirement = 0.50
+        tax_rate = 0.47
+        num_years = 15
+
+        daf_shorts_constraint = optimize.LinearConstraint(
+            np.identity(1 + 2 * len(self.asset_classes)),
+            lb=([0 for _ in range(len(self.asset_classes))]
+                +
+                [-np.inf for _ in range(len(self.asset_classes))]
+                +
+                [-np.inf]),
+            ub=[np.inf for _ in range(1 + 2 * len(self.asset_classes))],
+        )
+
+        daf_leverage_constraint = optimize.NonlinearConstraint(
+            lambda weights: sum(weights[:len(self.asset_classes)]),
+            lb=0, ub=1
+        )
+
+        taxable_leverage_constraint = optimize.NonlinearConstraint(
+            lambda weights: sum([x if x > 0 else x * (1 - short_margin_requirement)
+                                 for x in weights[len(self.asset_classes):2*len(self.asset_classes)]]),
+            lb=0,
+            ub=max_leverage
+        )
+
+        daf_size_constraint = optimize.LinearConstraint(
+            [0] * 2 * len(self.asset_classes) + [1],
+            lb=0, ub=1
+        )
+
+        def optimand(inputs):
+            weights = inputs[:2*len(self.asset_classes)]
+            daf_prop = inputs[2*len(self.asset_classes)]
+
+            return -(
+                daf_prop * (1 + self.geometric_mean([x for x in weights[:len(self.asset_classes)]], self.borrowing_costs(weights[:len(self.asset_classes)])))**num_years
+                +
+                (1 - daf_prop) * (1 - tax_rate) * (1 + self.geometric_mean([x for x in weights[len(self.asset_classes):]], self.borrowing_costs(weights[len(self.asset_classes):])))**num_years
+            )
+
+        opt = optimize.minimize(
+            optimand,
+            x0=[0.01 for _ in range(1 + 2 * len(self.asset_classes))],
+            constraints=[daf_shorts_constraint, daf_leverage_constraint, taxable_leverage_constraint, daf_size_constraint]
+        )
+
+        print("${} DAF, ${} taxable\n".format(
+            opt.x[2*len(self.asset_classes)],
+            (1 - opt.x[2*len(self.asset_classes)]) * (1 - tax_rate)
+        ))
+
+        print("-- DAF: --")
+        print("\n".join("{}: {:.0f}%".format(name, 100 * weight) for name, weight in zip(self.asset_classes, opt.x[:len(self.asset_classes)])))
+
+        print("\n-- Taxable: --")
+        print("\n".join("{}: {:.0f}%".format(name, 100 * weight) for name, weight in zip(self.asset_classes, opt.x[len(self.asset_classes):2*len(self.asset_classes)])))
+
 
 def efficient_frontier(lo_correl_correl):
     target_gmean = two_asset_gmean(3, 1)
@@ -699,14 +733,20 @@ def find_efficient_frontier():
     pyplot.savefig("/tmp/return-correlation-tradeoff.png")
 
 
+# Optimizer(
+#     my_favorite_data,
+#     leverage_cost=1,
+#     short_cost=0.25,
+# ).maximize_gmean(
+#     max_leverage=3,
+#     max_stdev=None,
+#     shorts_allowed=True,
+#     exogenous_portfolio_weight=0.99,
+#     exogenous_weights=[0.5, 0, 0, 0, 0.5],
+# )
+
 Optimizer(
-    fb_data_complex,
+    my_favorite_data,
     leverage_cost=1,
     short_cost=0.25,
-).maximize_gmean(
-    max_leverage=None,
-    max_stdev=25,
-    shorts_allowed=True,
-    exogenous_portfolio_weight=0.99,
-    exogenous_weights=[0.5, 0, 0.5],
-)
+).maximize_gmean_with_daf()
