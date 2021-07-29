@@ -6,6 +6,9 @@ ai_safety_now_later.py
 Author: Michael Dickens <michael@mdickens.me>
 Created: 2021-07-29
 
+Input variables are initialized at the top of the AISafetyModel class. These
+can be freely changed.
+
 """
 
 from typing import Callable, List, Tuple
@@ -15,13 +18,13 @@ from scipy import integrate, optimize, stats
 
 
 class AISafetyModel:
-    # Monetary numbers are in millions of dollars
-    starting_capital = 10000
-    required_research_median = 10000
+    # Monetary numbers are in billions of dollars
+    starting_capital = 5
+    required_research_median = 10
     required_research_sigma = np.log(5) # log(10) = 2.3, so sigma=2.3 means 10x is 1 stdev
     timeline_median = 3  # decades
-    timeline_sigma = np.log(2)
-    investment_return = 0.08  # market return minus research cost growth
+    timeline_sigma = np.log(2)  # 1 stdev is a little less than 10x
+    investment_return = 0.03  # market return minus research cost growth
     num_decades = 20
 
     def p_spending_is_sufficient(
@@ -35,7 +38,7 @@ class AISafetyModel:
 
     def p_sufficient_research(
             self,
-            spending_schedule: List[float],
+            spending_schedule,
             verbose=False,
     ) -> float:
         def total_spending_as_of(decade):
@@ -46,10 +49,11 @@ class AISafetyModel:
                 capital *= (1 - spending_schedule[y]) * (1 + self.investment_return)**10
             return spending
 
-        schedule2 = [0 for _ in range(self.num_decades)]
-        for i in range(len(spending_schedule)):
-            schedule2[i] = spending_schedule[i]
-        spending_schedule = schedule2
+        spending_schedule = (
+            list(spending_schedule)
+            +
+            [0 for _ in range(self.num_decades - len(spending_schedule))]
+        )
 
         numerator = 0
         denominator = 0
@@ -59,9 +63,10 @@ class AISafetyModel:
                 p_agi * self.p_spending_is_sufficient(decade, total_spending_as_of(decade))
             )
             if verbose:
-                print("{}: P(AGI) = {:.3f}, total spending = {:>6.0f}, P(sufficient) = {:.3f}".format(
+                print("{}: P(AGI) = {:.3f}, spending = {:>3.0f}%, cumulative spending = {:>6.0f}, P(sufficient|AGI) = {:.3f}".format(
                     2020 + 10*decade,
                     p_agi,
+                    100 * spending_schedule[decade],
                     total_spending_as_of(decade),
                     self.p_spending_is_sufficient(decade, total_spending_as_of(decade)))
                 )
@@ -88,6 +93,7 @@ class AISafetyModel:
                     opt.x[j] = 0
 
         print(opt)
+        print()
         self.p_sufficient_research(opt.x, verbose=True)
 
 
