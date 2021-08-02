@@ -275,7 +275,6 @@ class Optimizer:
                 [correl * stdev1 * stdev2 / 100 for correl, stdev2 in zip(row, stdevs)]
                 for row, stdev1 in zip(correlations, stdevs)
             ]
-
         if stdevs is None:
             # TODO: test this
             stdevs = [covariances[i][i] for i in range(len(means))]
@@ -289,6 +288,8 @@ class Optimizer:
         self.means = np.array([x/100 for x in means])
         self.stdevs = np.array([x/100 for x in stdevs])
         self.covariances = np.array([[x/100 for x in row] for row in covariances])
+
+        print("\n".join(["\t".join([str(x) for x in row]) for row in self.covariances]))
 
         self.NO_CONSTRAINT = optimize.LinearConstraint(
             # This is a "constraint" that's not actually constraining. Use this if you
@@ -733,20 +734,14 @@ def find_efficient_frontier():
     pyplot.savefig("/tmp/return-correlation-tradeoff.png")
 
 
-# Optimizer(
-#     my_favorite_data,
-#     leverage_cost=1,
-#     short_cost=0.25,
-# ).maximize_gmean(
-#     max_leverage=3,
-#     max_stdev=None,
-#     shorts_allowed=True,
-#     exogenous_portfolio_weight=0.99,
-#     exogenous_weights=[0.5, 0, 0, 0, 0.5],
-# )
-
 Optimizer(
-    my_favorite_data,
+    factor_data,
     leverage_cost=1,
     short_cost=0.25,
-).maximize_gmean_with_daf()
+).maximize_gmean(
+    max_leverage=1,
+    max_stdev=None,
+    shorts_allowed=False,
+    exogenous_portfolio_weight=0.0,
+    exogenous_weights=[0, 0, 0],
+)
