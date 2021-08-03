@@ -86,7 +86,7 @@ class AISafetyModel:
                 p_agi * self.p_spending_is_sufficient(total_spending_as_of(decade))
             )
             if verbose:
-                print("{}: P(AGI) = {:.3f}, spending = {:>3.0f}%, cumulative spending = {:>6.0f}, P(sufficient|AGI) = {:.3f}".format(
+                print("{}: P(AGI) = {:.3f}, spending = {:>3.0f}%, cumulative spending = {:>6.1f}, P(sufficient|AGI) = {:.3f}".format(
                     2020 + 10*decade,
                     p_agi,
                     100 * spending_schedule[decade],
