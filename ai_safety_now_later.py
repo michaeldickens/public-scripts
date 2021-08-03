@@ -23,9 +23,11 @@ class AISafetyModel:
     # scale).
     starting_capital = 5
     required_research_median = 10
-    required_research_sigma = np.log(5) # log(10) = 2.3, so sigma=2.3 means 10x is 1 stdev
+    required_research_sigma = np.log(5) # log(n) means n times larger is a
+                                        # 1-sigma event, n^2 times larger is a
+                                        # 2-sigma event, etc.
     timeline_median = 3  # decades
-    timeline_sigma = np.log(2)  # 1 stdev is a little less than 10x
+    timeline_sigma = np.log(2)
     investment_return = 0.03  # market return minus research cost growth
     num_decades = 20  # The model solves the optimization problem over this
                       # many decades, ignoring any decades after.
