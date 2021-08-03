@@ -18,26 +18,38 @@ from scipy import integrate, optimize, stats
 
 
 class AISafetyModel:
-    # Monetary numbers are in billions of dollars
+    # starting_capital and required_research_median are in billions of dollars
+    # (although technically it doesn't matter as long as they use the same
+    # scale).
     starting_capital = 5
     required_research_median = 10
     required_research_sigma = np.log(5) # log(10) = 2.3, so sigma=2.3 means 10x is 1 stdev
-    timeline_median = 10  # decades
+    timeline_median = 3  # decades
     timeline_sigma = np.log(2)  # 1 stdev is a little less than 10x
-    investment_return = 0.05  # market return minus research cost growth
-    num_decades = 20
-    p_agi_matters = 1
+    investment_return = 0.03  # market return minus research cost growth
+    num_decades = 20  # The model solves the optimization problem over this
+                      # many decades, ignoring any decades after.
+    p_agi_matters = 1  # Allow for the possibility that AGI turns out not to be
+                       # dangerous, and it's friendly even without any AI
+                       # safety research being done.
 
     def p_spending_is_sufficient(
             self,
-            decade: int,
             spending: float,
     ):
+        '''
+        Return the probability that `spending` is enough research spending to avert
+        unfriendly AI.
+        '''
         return stats.lognorm.cdf(
             spending, self.required_research_sigma, scale=self.required_research_median
         )
 
     def run_agi_spending(self, decade, spending_schedule):
+        '''
+        Helper function to find remaining capital and total spending up to `decade`
+        if following `spending_schedule`.
+        '''
         capital = self.starting_capital
         spending = 0
         for y in range(decade + 1):
@@ -50,6 +62,11 @@ class AISafetyModel:
             spending_schedule,
             verbose=False,
     ) -> float:
+        '''
+        Return the probability that, given a particular spending schedule,
+        enough research will be done to avert unfriendly AI.
+        '''
+
         def total_spending_as_of(decade):
             return self.run_agi_spending(decade, spending_schedule)[1]
 
@@ -64,7 +81,7 @@ class AISafetyModel:
         for decade in range(self.num_decades):
             p_agi = stats.lognorm.pdf(decade + 0.5, self.timeline_sigma, scale=self.timeline_median)
             numerator += (
-                p_agi * self.p_spending_is_sufficient(decade, total_spending_as_of(decade))
+                p_agi * self.p_spending_is_sufficient(total_spending_as_of(decade))
             )
             if verbose:
                 print("{}: P(AGI) = {:.3f}, spending = {:>3.0f}%, cumulative spending = {:>6.0f}, P(sufficient|AGI) = {:.3f}".format(
@@ -72,13 +89,17 @@ class AISafetyModel:
                     p_agi,
                     100 * spending_schedule[decade],
                     total_spending_as_of(decade),
-                    self.p_spending_is_sufficient(decade, total_spending_as_of(decade)))
+                    self.p_spending_is_sufficient(total_spending_as_of(decade)))
                 )
             denominator += p_agi
 
         return numerator / denominator
 
     def post_agi_utility(self, decade, spending_schedule):
+        '''
+        Return the expected utility of any capital left over after the
+        development of AGI.
+        '''
         capital = self.run_agi_spending(decade, spending_schedule)[0]
         discount = 0.001
 
@@ -87,6 +108,9 @@ class AISafetyModel:
         return np.log(capital)
 
     def expected_utility(self, spending_schedule):
+        '''
+        Return the expected utility of a given spending schedule.
+        '''
         def total_spending_as_of(decade):
             return self.run_agi_spending(decade, spending_schedule)[1]
 
@@ -101,7 +125,7 @@ class AISafetyModel:
         for decade in range(self.num_decades):
             p_agi_now = stats.lognorm.pdf(
                 decade + 0.5, self.timeline_sigma, scale=self.timeline_median)
-            p_sufficient = self.p_spending_is_sufficient(decade, total_spending_as_of(decade))
+            p_sufficient = self.p_spending_is_sufficient(total_spending_as_of(decade))
             utility = p_agi_now * (
                 (
                     self.p_agi_matters
@@ -116,6 +140,9 @@ class AISafetyModel:
         return numerator / denominator
 
     def optimal_spending_schedule(self):
+        '''
+        Calculate and print the spending schedule that maximizes expected utility.
+        '''
         num_to_opt = self.num_decades
         bounds_constraint = optimize.LinearConstraint(
             np.identity(num_to_opt),
@@ -127,6 +154,7 @@ class AISafetyModel:
             [0.1 for _ in range(num_to_opt)],
             constraints=[bounds_constraint],
         )
+
         # If spending=1 at any point, the optimizer will put in random values
         # afterward because those values don't actually affect anything. Set
         # them all to 0 to make the output easier to read.
