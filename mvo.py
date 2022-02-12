@@ -53,7 +53,7 @@ rafi_data = dict(
         "US LBO",
     ],
 
-    means = np.array([
+    gmeans = np.array([
          0.2,  # US Large
          1.9,  # US Small
          2.7,  # All country
@@ -121,7 +121,7 @@ factor_data = dict(
         "HML",
         "Mom",
     ],
-    means = [
+    gmeans = [
         6.4,
         3.6,
         6.5,
@@ -146,7 +146,7 @@ factor_data_with_tsmom = dict(
         "Mom",
         "TSMOM^EQ",
     ],
-    means = [
+    gmeans = [
         7.7,
         1.3,
         5.1,
@@ -171,7 +171,7 @@ mini_rafi_data = dict(
     asset_classes = [
         "US Market", "Global ex-US", "Commodities", "Intermediate Bonds"
     ],
-    means  = [ 0,  5,  1, -1],
+    gmeans = [ 0,  5,  1, -1],
     stdevs = [16, 17, 16,  4],
     correlations = [
         [ 1                   ],
@@ -189,7 +189,7 @@ trend_overlay_data = dict(
         #   do nothing (0% nominal return)
     "Market", "Long Val/Mom", "Trend Overlay"
     ],
-    means  = [ 5,  8, -2],  # nominal, not real
+    gmeans = [ 5,  8, -2],  # nominal, not real
     stdevs = [16, 16, 14],
     correlations = [
         [ 1   ,  0.84, -0.74],
@@ -207,7 +207,7 @@ my_favorite_data = dict(
         # crypto: market-neutral cryptocurrency trading
         "Market", "VMOT", "ManFut", "GVAL", "crypto"
     ],
-    means  = [ 3,  6,  3,  9, 10],
+    gmeans = [ 3,  6,  3,  9, 10],
     stdevs = [16, 13, 15, 22,  8],
     correlations = [
         [ 1                      ],
@@ -227,7 +227,7 @@ daf_data = dict(
         # GVAL: cheap stocks in cheap countries, like GVAL
         "Deep Value", "Deep Momentum", "VMOT", "ManFut", "GVAL", "Market"
     ],
-    means  = [ 7,  5,  6,  3,  7,  3],
+    gmeans = [ 7,  5,  6,  3,  7,  3],
     stdevs = [25, 22, 13, 15, 22, 16],
     correlations = [
         [ 1                           ],
@@ -245,7 +245,7 @@ fb_data = dict(
         # ManFut: managed futures, like AQR Time Series Momentum data set
         "VMOT", "ManFut", "FB", "crypto"
     ],
-    means  = [ 6,  3, -6,  40],
+    gmeans = [ 6,  3, -6,  40],
     stdevs = [13, 15, 35, 100],
     correlations = [
         [ 1           ],
@@ -265,7 +265,7 @@ class Optimizer:
         self.leverage_cost = leverage_cost / 100
 
         self.asset_classes = asset_data_to_use['asset_classes']
-        means = asset_data_to_use['means']
+        gmeans = asset_data_to_use['gmeans']
         stdevs = asset_data_to_use.get('stdevs')
         correlations = asset_data_to_use.get('correlations')
         covariances = asset_data_to_use.get('covariances')
@@ -277,7 +277,7 @@ class Optimizer:
             ]
         if stdevs is None:
             # TODO: test this
-            stdevs = [covariances[i][i] for i in range(len(means))]
+            stdevs = [covariances[i][i] for i in range(len(gmeans))]
 
         for i in range(len(covariances)):
             if len(covariances[i]) < len(covariances):
@@ -285,7 +285,7 @@ class Optimizer:
                     covariances[i].append(covariances[j][i])
 
         # Convert from percentage to proportion
-        self.means = np.array([x/100 for x in means])
+        self.gmeans = np.array([x/100 for x in gmeans])
         self.stdevs = np.array([x/100 for x in stdevs])
         self.covariances = np.array([[x/100 for x in row] for row in covariances])
 
@@ -294,7 +294,7 @@ class Optimizer:
         self.NO_CONSTRAINT = optimize.LinearConstraint(
             # This is a "constraint" that's not actually constraining. Use this if you
             # want to disable a particular constraint.
-            [0 for _ in means],
+            [0 for _ in gmeans],
             lb=0, ub=1
         )
 
@@ -304,7 +304,7 @@ class Optimizer:
         return total_short_cost + total_leverage_cost
 
     def neg_return(self, weights):
-        return -np.dot(weights, self.means + self.stdevs**2 / 2)
+        return -np.dot(weights, self.gmeans + self.stdevs**2 / 2)
 
     def neg_return_with_uncertainty(self, weights):
         param_uncertainty = 0.2
@@ -313,7 +313,7 @@ class Optimizer:
         accum_return = 0
         if getattr(self, 'monte_carlo_means', None) is None:
             self.monte_carlo_means = []
-            arithmetic_means = self.means + self.stdevs**2 / 2
+            arithmetic_means = self.gmeans + self.stdevs**2 / 2
             for i in range(num_samples):
                 # for now, assume stdev and correlation are fixed
                 self.monte_carlo_means.append(
@@ -326,10 +326,10 @@ class Optimizer:
 
         return accum_return / num_samples
 
-        # return -np.dot(weights, self.means + self.stdevs**2 / 2)
+        # return -np.dot(weights, self.gmeans + self.stdevs**2 / 2)
 
     def neg_sharpe(self, weights):
-        ret = np.dot(weights, self.means + self.stdevs**2 / 2)
+        ret = np.dot(weights, self.gmeans + self.stdevs**2 / 2)
         stdev = np.sqrt(np.dot(np.dot(self.covariances, weights), weights))
         return -ret / stdev
 
@@ -342,7 +342,7 @@ class Optimizer:
         Bernstein & Wilkinson (1997), "Diversification, Rebalancing, and the Geometric Mean Frontier"
         https://www.effisols.com/basics/rebal.pdf
         '''
-        arithmetic_means = self.means + self.stdevs**2 / 2
+        arithmetic_means = self.gmeans + self.stdevs**2 / 2
         arithmetic_mean = np.dot(weights, arithmetic_means) - extra_cost
         variance = np.dot(np.dot(self.covariances, weights), weights)
         return np.log(1 + arithmetic_mean) - variance / (2 * (1 + arithmetic_mean)**2)
@@ -353,7 +353,7 @@ class Optimizer:
         num_samples = 5000
 
         accum_gmean = 0
-        saved_means = self.means
+        saved_means = self.gmeans
         saved_stdevs = self.stdevs
         if getattr(self, 'monte_carlo_means', None) is None:
             self.monte_carlo_means = []
@@ -368,11 +368,11 @@ class Optimizer:
                               for stdev in saved_stdevs]))
 
         for i in range(num_samples):
-            self.means = self.monte_carlo_means[i]
+            self.gmeans = self.monte_carlo_means[i]
             self.stdevs = self.monte_carlo_stdevs[i]
             accum_gmean += self.geometric_mean(weights, extra_cost)
 
-        self.means = saved_means
+        self.gmeans = saved_means
         self.stdevs = saved_stdevs
         return accum_gmean / num_samples
 
@@ -491,9 +491,9 @@ class Optimizer:
         num_samples = 5000
         param_uncertainty = 0.2
         accum_weights = np.array([0.0 for _ in self.asset_classes])
-        saved_means = self.means
+        saved_means = self.gmeans
         for i in range(num_samples):
-            self.means = [np.random.normal(mean, param_uncertainty * mean) for mean in saved_means]
+            self.gmeans = [np.random.normal(mean, param_uncertainty * mean) for mean in saved_means]
             opt = optimize.minimize(
                 optimand,
                 x0=[0.01 for _ in self.asset_classes],
@@ -734,14 +734,87 @@ def find_efficient_frontier():
     pyplot.savefig("/tmp/return-correlation-tradeoff.png")
 
 
-Optimizer(
-    factor_data,
+startups_vs_vmot = dict(
+    asset_classes = [
+        "Market", "VMOT+ManFut", "Startups"
+    ],
+    gmeans = [ 3,  6, 18],
+    stdevs = [16, 11, 35],
+    correlations = [
+        [ 1            ],
+        [ 0.1,  1      ],
+        [ 0.7, -0.3,  1],
+    ]
+)
+
+startups_vs_vmot_historical = dict(
+    asset_classes = [
+        "Market", "VMOT+ManFut", "Startups"
+    ],
+    gmeans = [ 9, 15, 27],
+    stdevs = [19, 12, 35],
+    correlations = [
+        [ 1            ],
+        [ 0.1,  1      ],
+        [ 0.7, -0.3,  1],
+    ]
+)
+
+
+startups_vs_vmot_alpha = dict(
+    asset_classes = [
+        "Market", "VMOT+ManFut", "Startup Alpha"
+    ],
+    gmeans = [ 3,  6,  8],
+    stdevs = [16, 11, 16],
+    correlations = [
+        [ 1            ],
+        [ 0.5,  1      ],
+        [ 0.0, -0.3,  1],
+    ]
+)
+
+
+# optimizer = Optimizer(
+#     my_favorite_data,
+#     leverage_cost=1,
+#     short_cost=0.25,
+# )
+
+# print(optimizer.maximize_gmean(
+#     max_leverage=None,
+#     max_stdev=30,
+#     shorts_allowed=True,
+#     exogenous_portfolio_weight=0.99,
+#     exogenous_weights=[0.5, 0, 0, 0, 0.5],
+# ))
+
+
+top_startup_data = dict(
+    asset_classes = [
+        "Market", "VMOT+ManFut", "Top Startup"
+    ],
+    gmeans = [ 3,  6,   8],  # 50% gmean = 100% amean
+    stdevs = [16, 11, 100],
+    correlations = [
+        [ 1            ],
+        [ 0.5,  1      ],
+        [ 0.5, -0.3,  1],
+    ]
+)
+
+optimizer = Optimizer(
+    top_startup_data,
     leverage_cost=1,
     short_cost=0.25,
-).maximize_gmean(
-    max_leverage=1,
-    max_stdev=None,
-    shorts_allowed=False,
-    exogenous_portfolio_weight=0.0,
-    exogenous_weights=[0, 0, 0],
 )
+
+for entrepreneur_size in [0.01, 0.03, 0.1, 0.2, 0.5, 1]:
+    print("\n{}%:".format(int(100 * entrepreneur_size)))
+    print(optimizer.maximize_gmean(
+        max_leverage=2,
+        max_stdev=None,
+        shorts_allowed=True,
+        exogenous_portfolio_weight=1 - entrepreneur_size,
+        exogenous_weights=[1, 0, 0],
+    ))

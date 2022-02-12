@@ -241,7 +241,7 @@ class TestLeverageEnvironment(TestCase):
                             self.assertAlmostEqual(ev1, ev2)
 
 
-if __name__ == "__main__":
+if False and __name__ == "__main__":
     # edit these
     expected_sell_price = 30  # arithmetic mean
     affirm_volatility = 0.60
@@ -291,3 +291,31 @@ if __name__ == "__main__":
     # print(exercise_res)
 
     # print("Should exercise?", "YES" if exercise_res['utility'] > market_res['utility'] else "NO")
+
+
+if __name__ == "__main__":
+    afrm_price = 99.00
+    afrm_buy_price = 15.38
+    afrm_arithmetic_mean = -0.02
+    afrm_volatility = 1.00
+    relative_risk_aversion = 1.5
+    years_to_liquidity = 0.3
+    stcg_rate = 0.37
+    ltcg_rate = 0.20
+
+    print("Market:")
+    market_res = LeverageEnvironment(
+        rra=relative_risk_aversion, mu=0.07, sigma=0.11
+    ).certainty_equivalent_return(leverage=1.5)
+    print(market_res)
+
+    print("AFRM:")
+    afrm_res = LeverageEnvironment(
+        rra=relative_risk_aversion,
+        mu=afrm_arithmetic_mean - afrm_volatility**2 / 2,
+        sigma=afrm_volatility
+    ).certainty_equivalent_return(leverage=1)
+    print(afrm_res)
+
+    # -48% difference in annual CE return = -15% 3-month return vs. a tax-based
+    # -return of 27%. 8% net return from holding

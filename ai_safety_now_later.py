@@ -18,27 +18,8 @@ from scipy import integrate, optimize, stats
 
 
 class AISafetyModel:
-    # starting_capital and required_research_median are in billions of dollars
-    # (although technically it doesn't matter as long as they use the same
-    # scale).
-    starting_capital = 5
-    required_research_median = 10
-    required_research_sigma = np.log(5) # log(n) means n times larger is a
-                                        # 1-sigma event, n^2 times larger is a
-                                        # 2-sigma event, etc.
-    timeline_median = 3  # decades
-    timeline_sigma = np.log(2)
-    investment_return = 0.03  # market return minus research cost growth
-    num_decades = 20  # The model solves the optimization problem over this
-                      # many decades, ignoring any decades after.
-    p_agi_matters = 1  # Allow for the possibility that AGI turns out not to be
-                       # dangerous, and it's friendly even without any AI
-                       # safety research being done.
 
-    def p_spending_is_sufficient(
-            self,
-            spending: float,
-    ):
+    def p_spending_is_sufficient_lognormal(self, spending: float):
         '''
         Return the probability that `spending` is enough research spending to avert
         unfriendly AI.
@@ -46,6 +27,16 @@ class AISafetyModel:
         return stats.lognorm.cdf(
             spending, self.required_research_sigma, scale=self.required_research_median
         )
+
+    def p_spending_is_sufficient_constant(self, spending: float):
+        return spending >= self.required_research_median
+
+    def p_agi_lognormal(self, decade):
+        return stats.lognorm.pdf(decade + 0.5, self.timeline_sigma, scale=self.timeline_median)
+
+    def p_agi_exponential(self, decade):
+        k = np.log(2) / self.timeline_median
+        return k * np.exp(k * (decade + 0.5))
 
     def run_agi_spending(self, decade, spending_schedule):
         '''
@@ -81,12 +72,12 @@ class AISafetyModel:
         numerator = 0
         denominator = 0
         for decade in range(self.num_decades):
-            p_agi = stats.lognorm.pdf(decade + 0.5, self.timeline_sigma, scale=self.timeline_median)
+            p_agi = self.p_agi(decade)
             numerator += (
                 p_agi * self.p_spending_is_sufficient(total_spending_as_of(decade))
             )
             if verbose:
-                print("{}: P(AGI) = {:.3f}, spending = {:>3.0f}%, cumulative spending = {:>6.1f}, P(sufficient|AGI) = {:.3f}".format(
+                print("{}: P(AGI) = {:.3f}, spending = {:>4.1f}%, cumulative spending = {:>6.1f}, P(sufficient|AGI) = {:.3f}".format(
                     2020 + 10*decade,
                     p_agi,
                     100 * spending_schedule[decade],
@@ -103,10 +94,6 @@ class AISafetyModel:
         development of AGI.
         '''
         capital = self.run_agi_spending(decade, spending_schedule)[0]
-        discount = 0.001
-
-        investment_ret = 0.1
-
         return np.log(capital)
 
     def expected_utility(self, spending_schedule):
@@ -125,8 +112,7 @@ class AISafetyModel:
         numerator = 0
         denominator = 0
         for decade in range(self.num_decades):
-            p_agi_now = stats.lognorm.pdf(
-                decade + 0.5, self.timeline_sigma, scale=self.timeline_median)
+            p_agi_now = self.p_agi(decade)
             p_sufficient = self.p_spending_is_sufficient(total_spending_as_of(decade))
             utility = p_agi_now * (
                 (
@@ -156,6 +142,11 @@ class AISafetyModel:
             [0.1 for _ in range(num_to_opt)],
             constraints=[bounds_constraint],
         )
+        # opt = optimize.basinhopping(
+        #     lambda schedule: -self.expected_utility(schedule),
+        #     np.array([0.1 for _ in range(num_to_opt)]),
+        #     minimizer_kwargs=dict(constraints=[bounds_constraint]),
+        # )
 
         # If spending=1 at any point, the optimizer will put in random values
         # afterward because those values don't actually affect anything. Set
@@ -170,4 +161,29 @@ class AISafetyModel:
         self.p_sufficient_research(opt.x, verbose=True)
 
 
-AISafetyModel().optimal_spending_schedule()
+model = AISafetyModel()
+
+# Note: Setting variables this way is not good practice, but this is like a 200
+# line script so deal with it
+
+# starting_capital and required_research_median are in billions of dollars
+# (although technically it doesn't matter as long as they use the same
+# scale).
+model.starting_capital = 5
+model.required_research_median = 10
+model.required_research_sigma = np.log(5) # log(n) means n times larger is a
+                                          # 1-sigma event, n^2 times larger is a
+                                          # 2-sigma event, etc.
+model.timeline_median = 3  # decades
+model.timeline_sigma = np.log(2)
+model.investment_return = 0.05  # market return minus research cost growth
+model.num_decades = 20  # The model solves the optimization problem over this
+                        # many decades, ignoring any decades after.
+model.p_agi_matters = 1  # Allow for the possibility that AGI turns out not to be
+                         # dangerous, and it's friendly even without any AI
+                         # safety research being done.
+
+model.p_spending_is_sufficient = model.p_spending_is_sufficient_lognormal
+model.p_agi = model.p_agi_lognormal
+
+model.optimal_spending_schedule()
