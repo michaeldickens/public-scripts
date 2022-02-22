@@ -139,3 +139,7 @@ cython_debug/
 
 # Mac stuff
 .DS_STORE
+
+# Haskell stuff
+*.hi
+*.o
