@@ -24,10 +24,24 @@ import Text.Printf
 traceShowSelf x = traceShow x x
 
 
+standardNormalPDF :: Vector Double -> Double
+standardNormalPDF zs = (1 / sqrt ((2 * pi)**(fromIntegral $ Vec.length zs))) * exp (-0.5 * (zs `dot` zs))
+
+
 multiNormPdf :: Vector Double -> Vector Double -> Matrix Double -> Double
 multiNormPdf xs means covars = (exp $ (-0.5) * ((residuals <# inv covars) `dot` residuals)) / (sqrt $ (2 * pi)**k * det covars)
   where residuals = Vec.zipWith (-) xs means
         k = fromIntegral $ Vec.length xs
+
+
+-- | TODO: I'm adapting this from Maruddani (2018), but I think the formula in
+-- that paper is slightly wrong, so I'm using a modified version
+multiNormRVs :: Vector Double -> Vector Double -> Matrix Double -> Vector Double
+multiNormRVs zScores alphas covars =
+  Vec.fromList $ zipWith
+  (\alpha row -> alpha - 0.5 * Vec.sum row + (Vec.sum $ Vec.zipWith (\z cov -> z * sqrt cov) zScores row))
+  (Vec.toList alphas) covarRows
+  where covarRows = toRows covars
 
 
 integralMaxStdev = 6 :: Double
@@ -43,16 +57,16 @@ integralPoints = [fromList [x, y, z] | x <- uniPoints, y <- uniPoints, z <- uniP
 
 modelDistribution :: (Vector Double, Matrix Double)
 modelDistribution =
-  let mus = fromList [0.08, 0.04, 0.03] :: Vector Double
+  let alphas = fromList [0.08, 0.04, 0.03] :: Vector Double
       sigmas = diagl [0.18, 0.18, 0.02] :: Matrix Double
-      hedgeCorrelation = 0.0
+      hedgeCorrelation = 0.5
       correlations = (3><3)
         [ 1, 0               , 0
         , 0, 1               , hedgeCorrelation
         , 0, hedgeCorrelation, 1
         ] :: Matrix Double
       covariances = (sigmas <> correlations) <> sigmas
-  in (mus, covariances)
+  in (alphas, covariances)
 
 
 -- | Utility function with constant relative risk aversion.
@@ -61,66 +75,58 @@ crraUtility 1 money = log money
 crraUtility rra money = (money**(1 - rra) - 1) / (1 - rra)
 
 
-utility :: Double -> Double -> Double -> Double -> Double -> Double
-utility numYears hedgeProp marketRet hedgeRet co2Ret = log money -- * co2
-  where money = exp $ numYears * ((1 - hedgeProp) * marketRet + hedgeProp * hedgeRet)
-        co2 = exp $ numYears * co2Ret
+utility :: Double -> Double -> Double
+utility wealth co2 = log wealth * co2
 
 
--- | Deterministically compute expected utility using a triple integral with custom-sized trapezoids.
---
--- TODO: Maybe could improve on this by calculating a few moments of the Taylor
--- series, like what Estrada does for GMM
-expectedUtility :: Double -> Double
-expectedUtility hedgeProp =
-  -- TODO: By calculating values from z-scores this way, I'm spending "too much"
-  -- time calculating values on the anticorrelated side. It would be more
-  -- efficient to have smaller trapezoids in the parts of probability space
-  -- where the RVs are more likely to co-occur.
+expectedUtility :: Vector Double -> Double
+expectedUtility weights' =
   sum $ map (
   \zScores ->
-    let (means, covars) = modelDistribution
-        stdevs = Vec.fromList $ map (\i -> sqrt $ covars!i!i) [0, 1, 2]
-        rvs = Vec.zipWith (+) means $ Vec.zipWith (*) stdevs zScores
-        weights = Vec.fromList [1 - hedgeProp, hedgeProp, 0]
-        variance = (weights <# covars) `dot` weights
-        pdf = multiNormPdf rvs means covars
-        u = (utility 1 hedgeProp (rvs!0) (rvs!1) (rvs!2)) - variance/2
-        width = (integralTrapezoidWidth**3 * Vec.product stdevs)
+    let (alphas, covars) = modelDistribution
+        weights = weights' `Vec.snoc` 1  -- dummy weight for co2
+        pdf = standardNormalPDF zScores
+        scaledAlphas = (Vec.zipWith (*) weights alphas)
+        scaledCovars = (3><3) $ List.concat [[covars!i!j * weights!i * weights!j | i <- [0..2]] | j <- [0..2]]
+        rvs = multiNormRVs zScores scaledAlphas scaledCovars
+        u = utility (exp $ Vec.sum $ Vec.slice 0 2 rvs) (exp $ rvs!2)
+        width = integralTrapezoidWidth**3
     in u * pdf * width
   ) integralPoints
 
 
-gradientDescent :: (Double -> Double) -> Double -> Double -> Int -> Double
-gradientDescent f x scale stepsLeft
-  | stepsLeft == 0 = x
-  | otherwise =
-      let xg = x + 0.0001
-          fx = f x
-          gradient = (f xg - fx) / (xg - x)
-      in if isNaN gradient || abs gradient < 0.0000001
-          then x
-          else gradientDescent f (x + scale * gradient) scale (stepsLeft - 1)
-
-
-gradientDescentIO :: (Double -> Double) -> Double -> Double -> Int -> IO Double
+gradientDescentIO :: (Vector Double -> Double) -> Vector Double -> Double -> Int -> IO (Vector Double)
 gradientDescentIO f initialGuess scale numSteps = go initialGuess numSteps
-  where go :: Double -> Int -> IO Double
-        go x 0 = return x
+  where go :: Vector Double -> Int -> IO (Vector Double)
+        go x 0 = do
+          printInfo x (f x)
+          printf " (failed to converge after %d steps)\n" numSteps
+          return x
         go x stepsLeft =
-          let xg = x + 0.0001
+          let h = 0.0001
               fx = f x
-              gradient = (f xg - fx) / (xg - x)
-          in if isNaN gradient || abs gradient < 0.0000001
-             then return x
+              gradient = Vec.map (\i -> (f (Vec.accum (+) x [(i, h)]) - fx) / h) $ Vec.fromList [0..(Vec.length x - 1)]
+              distance = sqrt $ Vec.sum $ Vec.map (**2) gradient
+          in if isNaN distance || distance < 0.0000001
+             then do
+               printInfo x fx
+               printf " (converged after %d steps)\n" (numSteps - stepsLeft + 1)
+               return x
              else do
-               printf "EU(%.4f) = %.4f (step %d)\r" x fx (numSteps - stepsLeft + 1)
-               go (x + scale * gradient) (stepsLeft - 1)
+               printInfo x fx
+               printf " (step %d)\r" (numSteps - stepsLeft + 1)
+               go (Vec.zipWith (+) x $ Vec.map (* scale) gradient) (stepsLeft - 1)
+
+        printInfo x fx = printf "EU(%.4f, %.4f) = %.4f" (x!0) (x!1) fx
 
 
 main :: IO ()
 main = do
   let (means, covars) = modelDistribution
 
-  res <- gradientDescentIO expectedUtility 0.5 5 100
-  printf "EU(%.4f) = %.4f\n" res (expectedUtility res)
+  print $ expectedUtility $ Vec.fromList [2.3, 1.0]
+  print $ expectedUtility $ Vec.fromList [2.47, 1.23]
+  print $ expectedUtility $ Vec.fromList [2.6, 1.4]
+  putStrLn ""
+  res <- gradientDescentIO expectedUtility (fromList [0.5, 0.5]) 10 100
+  return ()
