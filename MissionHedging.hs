@@ -11,7 +11,7 @@ Created     : 2022-02-21
 module Main where
 
 import Control.Parallel
-import qualified Data.List as List
+import Data.List as List
 import qualified Data.Vector.Storable as Vec
 import Debug.Trace
 import Numeric.LinearAlgebra
@@ -24,40 +24,44 @@ import Text.Printf
 traceShowSelf x = traceShow x x
 
 
-standardNormalPDF :: Vector Double -> Double
-standardNormalPDF zs = (1 / sqrt ((2 * pi)**(fromIntegral $ Vec.length zs))) * exp (-0.5 * (zs `dot` zs))
+updateAt :: Int -> (a -> a) -> [a] -> [a]
+updateAt i f xs = go i xs
+  where go 0 (x:xs) = (f x) : xs
+        go j (x:xs) = x : (go (j-1) xs)
 
 
-multiNormPdf :: Vector Double -> Vector Double -> Matrix Double -> Double
-multiNormPdf xs means covars = (exp $ (-0.5) * ((residuals <# inv covars) `dot` residuals)) / (sqrt $ (2 * pi)**k * det covars)
-  where residuals = Vec.zipWith (-) xs means
-        k = fromIntegral $ Vec.length xs
+standardNormalPDF :: [Double] -> Double
+standardNormalPDF zs = (1 / sqrt ((2 * pi)**(fromIntegral $ length zs))) * exp (-0.5 * (sum $ map (**2) zs))
 
 
--- | TODO: I'm adapting this from Maruddani (2018), but I think the formula in
--- that paper is slightly wrong, so I'm using a modified version
-multiNormRVs :: Vector Double -> Vector Double -> Matrix Double -> Vector Double
+multiNormRVs :: [Double] -> [Double] -> [[Double]] -> [Double]
 multiNormRVs zScores alphas covars =
-  Vec.fromList $ zipWith
-  (\alpha row -> alpha - 0.5 * Vec.sum row + (Vec.sum $ Vec.zipWith (\z cov -> z * sqrt cov) zScores row))
-  (Vec.toList alphas) covarRows
-  where covarRows = toRows covars
+  -- TODO: What if covariance is negative?
+
+  -- TODO: expectedUtility never changes when I change the 3rd term. It looks
+  -- like the 3rd term is symmetric so it cancels out over the full integral,
+  -- and the first 2 terms happen to be the expected utility with U = log w, so
+  -- it still works with log utility.
+  zipWith
+  (\alpha row -> alpha - 0.5 * sum row + (sum $ zipWith (\z cov -> z * sqrt cov) zScores row))
+  -- (\alpha row -> alpha - 0.5 * sum row)
+  alphas covars
 
 
-integralMaxStdev = 6 :: Double
-integralNumDivisions = 9 :: Double
+integralMaxStdev = 7 :: Double
+integralNumDivisions = 10 :: Double
 integralTrapezoidWidth = integralMaxStdev / integralNumDivisions
 
 
-integralPoints :: [Vector Double]
-integralPoints = [fromList [x, y, z] | x <- uniPoints, y <- uniPoints, z <- uniPoints, abs x + abs y + abs z < 15]
+integralPoints :: [[Double]]
+integralPoints = [[x, y, z] | x <- uniPoints, y <- uniPoints, z <- uniPoints, abs x + abs y + abs z < 15]
   where uniPointsAbs = map (* integralTrapezoidWidth) [1..integralNumDivisions]
         uniPoints = map negate uniPointsAbs ++ [0] ++ uniPointsAbs
 
 
-modelDistribution :: (Vector Double, Matrix Double)
+modelDistribution :: ([Double], [[Double]])
 modelDistribution =
-  let alphas = fromList [0.08, 0.04, 0.03] :: Vector Double
+  let alphas = [0.08, 0.04, 0.03] :: [Double]
       sigmas = diagl [0.18, 0.18, 0.02] :: Matrix Double
       hedgeCorrelation = 0.5
       correlations = (3><3)
@@ -65,7 +69,7 @@ modelDistribution =
         , 0, 1               , hedgeCorrelation
         , 0, hedgeCorrelation, 1
         ] :: Matrix Double
-      covariances = (sigmas <> correlations) <> sigmas
+      covariances = toLists $ (sigmas <> correlations) <> sigmas
   in (alphas, covariances)
 
 
@@ -76,28 +80,28 @@ crraUtility rra money = (money**(1 - rra) - 1) / (1 - rra)
 
 
 utility :: Double -> Double -> Double
-utility wealth co2 = log wealth * co2
+utility wealth co2 = log wealth -- * co2
 
 
-expectedUtility :: Vector Double -> Double
+expectedUtility :: [Double] -> Double
 expectedUtility weights' =
   sum $ map (
   \zScores ->
     let (alphas, covars) = modelDistribution
-        weights = weights' `Vec.snoc` 1  -- dummy weight for co2
+        weights = weights' ++ [1]  -- dummy weight for co2
         pdf = standardNormalPDF zScores
-        scaledAlphas = (Vec.zipWith (*) weights alphas)
-        scaledCovars = (3><3) $ List.concat [[covars!i!j * weights!i * weights!j | i <- [0..2]] | j <- [0..2]]
+        scaledAlphas = (zipWith (*) weights alphas)
+        scaledCovars = [[covars!!i!!j * weights!!i * weights!!j | i <- [0..2]] | j <- [0..2]]
         rvs = multiNormRVs zScores scaledAlphas scaledCovars
-        u = utility (exp $ Vec.sum $ Vec.slice 0 2 rvs) (exp $ rvs!2)
+        u = utility (exp $ sum $ take 2 rvs) (exp $ rvs!!2)
         width = integralTrapezoidWidth**3
     in u * pdf * width
   ) integralPoints
 
 
-gradientDescentIO :: (Vector Double -> Double) -> Vector Double -> Double -> Int -> IO (Vector Double)
+gradientDescentIO :: ([Double] -> Double) -> [Double] -> Double -> Int -> IO ([Double])
 gradientDescentIO f initialGuess scale numSteps = go initialGuess numSteps
-  where go :: Vector Double -> Int -> IO (Vector Double)
+  where go :: [Double] -> Int -> IO ([Double])
         go x 0 = do
           printInfo x (f x)
           printf " (failed to converge after %d steps)\n" numSteps
@@ -105,9 +109,9 @@ gradientDescentIO f initialGuess scale numSteps = go initialGuess numSteps
         go x stepsLeft =
           let h = 0.0001
               fx = f x
-              gradient = Vec.map (\i -> (f (Vec.accum (+) x [(i, h)]) - fx) / h) $ Vec.fromList [0..(Vec.length x - 1)]
-              distance = sqrt $ Vec.sum $ Vec.map (**2) gradient
-          in if isNaN distance || distance < 0.0000001
+              gradient = map (\i -> (f (updateAt i (+h) x) - fx) / h) [0..(length x - 1)]
+              distance = sqrt $ sum $ map (**2) gradient
+          in if isNaN distance || distance < 0.000001
              then do
                printInfo x fx
                printf " (converged after %d steps)\n" (numSteps - stepsLeft + 1)
@@ -115,18 +119,21 @@ gradientDescentIO f initialGuess scale numSteps = go initialGuess numSteps
              else do
                printInfo x fx
                printf " (step %d)\r" (numSteps - stepsLeft + 1)
-               go (Vec.zipWith (+) x $ Vec.map (* scale) gradient) (stepsLeft - 1)
+               go (zipWith (+) x $ map (* scale) gradient) (stepsLeft - 1)
 
-        printInfo x fx = printf "EU(%.4f, %.4f) = %.4f" (x!0) (x!1) fx
+        printInfo x fx = printf "EU(%.4f, %.4f) = %.4f" (x!!0) (x!!1) fx
 
 
 main :: IO ()
 main = do
-  let (means, covars) = modelDistribution
+  let (alphas, covars) = modelDistribution
 
-  print $ expectedUtility $ Vec.fromList [2.3, 1.0]
-  print $ expectedUtility $ Vec.fromList [2.47, 1.23]
-  print $ expectedUtility $ Vec.fromList [2.6, 1.4]
+  let weights = [0.5, 0.5]
+  let scaledAlphas = (zipWith (*) weights alphas)
+  let scaledCovars = [[covars!!i!!j * weights!!i * weights!!j | i <- [0..1]] | j <- [0..1]]
+  print $ multiNormRVs [0, 0] scaledAlphas scaledCovars
+  print $ multiNormRVs [1, 0] scaledAlphas scaledCovars
+  print $ multiNormRVs [0, 1] scaledAlphas scaledCovars
   putStrLn ""
-  res <- gradientDescentIO expectedUtility (fromList [0.5, 0.5]) 10 100
+  res <- gradientDescentIO expectedUtility ([0.5, 0.5]) 10 100
   return ()
