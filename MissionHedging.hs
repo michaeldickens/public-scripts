@@ -132,10 +132,7 @@ expectedUtility weights' =
         y0 = transform $ map fst rectRanges
         y1 = transform $ map snd rectRanges
         width = product $ zipWith (-) y1 y0
-        pdf0 = lognormPDF y0 mus covars
-        pdf1 = lognormPDF y1 mus covars
-        -- pdf = sqrt (pdf0 * pdf1)  -- geometric average (probably more accurate than arithmetic)
-        pdf = (pdf0 + pdf1) / 2
+        pdf = lognormPDF (transform $ map (\(e, s) -> (e + s) / 2) rectRanges) mus covars
 
         -- wealth = exp $ sum $ take 2 xs
         -- co2 = ys!!2
@@ -174,7 +171,7 @@ main :: IO ()
 main = do
   let (alphas, covars) = modelDistribution
 
-  print $ expectedUtility'' [0.5, 0.5]
+  print $ expectedUtility [0.5, 0.5]
   putStrLn ""
   -- res <- gradientDescentIO expectedUtility ([0.5, 0.5]) 10 100
   return ()
