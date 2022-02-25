@@ -74,22 +74,20 @@ lognormPDF ys mus covars =
 uniLognormPDF' y mu cov = (1 / sqrt (2*pi * cov)) * (1 / y) * exp ((-0.5) * (log y - mu)**2 / cov)
 
 
-integralMaxStdev = 7 :: Double
-integralNumDivisions = 10 :: Double
-integralTrapezoidWidth = integralMaxStdev / integralNumDivisions
+-- With 6 stdev, the Riemann sum is a slight overestimate. With 5 stdev, it's a slight underestimate
+integralMaxStdev = 6 :: Double
+integralNumDivisions = 12 :: Int
+integralTrapezoidWidth = integralMaxStdev / fromIntegral integralNumDivisions
 
 
 integralPoints :: [[Double]]
 integralPoints = [[x, y, z] | x <- uniPoints, y <- uniPoints, z <- uniPoints, abs x + abs y + abs z < 15]
-  where uniPointsAbs = map (* integralTrapezoidWidth) [1..integralNumDivisions]
-        uniPoints = map negate uniPointsAbs ++ [0] ++ uniPointsAbs
+  where uniPoints = map ((* integralTrapezoidWidth) . fromIntegral) [(-integralNumDivisions)..integralNumDivisions]
 
 
--- | Log-space for a standard lognormal distribution. Less dense on the negative
--- side because values changes more slowly there.
-logIntegralRanges :: [[(Double, Double)]]
-logIntegralRanges = [[x, y, z] | x <- uniRanges, y <- uniRanges, z <- uniRanges]
-  where uniPoints = [-99, -6, -4.5, -3, -2, -1, -0.5, 0, 1/3, 2/3, 1, 4/3, 5/3, 2, 2.5, 3, 4, 5, 6, 7.5]
+integralRanges :: [[(Double, Double)]]
+integralRanges = [[x, y, z] | x <- uniRanges, y <- uniRanges, z <- uniRanges]
+  where uniPoints = map ((* integralTrapezoidWidth) . fromIntegral) [(-integralNumDivisions)..integralNumDivisions]
         uniRanges = zip uniPoints (tail uniPoints)
 
 
@@ -117,86 +115,34 @@ utility :: Double -> Double -> Double
 utility wealth co2 = log wealth -- * co2
 
 
-expectedUtility' :: [Double] -> Double
-expectedUtility' weights' =
-  sum $ map (
-  \zScores ->
-    let (alphas, covars) = modelDistribution
-        weights = weights' ++ [1]  -- dummy weight for co2
-        pdf = standardNormalPDF zScores
-        scaledAlphas = (zipWith (*) weights alphas)
-        scaledCovars = [[covars!!i!!j * weights!!i * weights!!j | i <- [0..2]] | j <- [0..2]]
-        rvs = multiNormRVs zScores scaledAlphas scaledCovars
-        u = utility (exp $ sum $ take 2 rvs) (exp $ rvs!!2)
-        width = integralTrapezoidWidth**3
-    in u * pdf * width
-  ) integralPoints
-
-
--- | Riemann sum using lognormal z-score points chosen for effiency with a lognormal distribution.
---
--- TODO: This is somehow much less accurate (pdf integrates to 1.009 instead of ~1)
-expectedUtility'' :: [Double] -> Double
-expectedUtility'' weights' =
+expectedUtility :: [Double] -> Double
+expectedUtility weights' =
   sum $ map (
   \rectRanges ->
     let (alphas', covars') = modelDistribution
         weights = weights' ++ [1]  -- dummy weight for co2
-        zScores = map (\(s, e) -> (s + e) / 2) rectRanges
-        widths = map (\(s, e) -> exp e - exp s) rectRanges
 
         alphas = zipWith (*) weights alphas'
         covars = [[weights!!i * weights!!j * covars'!!i!!j | i <- [0..2]] | j <- [0..2]]
 
         mus = zipWith (\alpha row -> alpha - 0.5 * sum row) alphas covars
         stdevs = [sqrt $ covars!!i!!i | i <- [0..2]]
-        xs = zipWith4 (\mu sd wt z -> mu + sd * sqrt (abs wt) * signum wt * z) mus stdevs weights zScores
-        ys = map exp xs
+        transform point = zipWith4 (\mu sd wt x -> exp $ mu + sd * sqrt (abs wt) * signum wt * x) mus stdevs weights point
 
-        -- I think something is wrong with my integration because even standard normal pdf doesn't integrate to 1
-        -- pdf = lognormPDF ys mus covars  -- this is the supposedly correct one
-        pdf = lognormPDF (map exp zScores) [0,0,0] [[1,0,0],[0,1,0],[0,0,1]]
+        y0 = transform $ map fst rectRanges
+        y1 = transform $ map snd rectRanges
+        width = product $ zipWith (-) y1 y0
+        pdf0 = lognormPDF y0 mus covars
+        pdf1 = lognormPDF y1 mus covars
+        -- pdf = sqrt (pdf0 * pdf1)  -- geometric average (probably more accurate than arithmetic)
+        pdf = (pdf0 + pdf1) / 2
 
-        wealth = exp $ sum $ take 2 xs
-        co2 = ys!!2
-        u = utility wealth co2
-        width = product widths
+        -- wealth = exp $ sum $ take 2 xs
+        -- co2 = ys!!2
+        -- u = utility wealth co2
     -- in u * pdf * width
     in pdf * width
-  ) logIntegralRanges
-
-
--- | Riemann sum using evenly-spaced normal z-scores
-expectedUtility :: [Double] -> Double
-expectedUtility weights' =
-  sum $ map (
-  \zScores ->
-    let (alphas', covars') = modelDistribution
-        weights = weights' ++ [1]  -- dummy weight for co2
-
-        alphas = zipWith (*) weights alphas'
-        covars = [[weights!!i * weights!!j * covars'!!i!!j | i <- [0..2]] | j <- [0..2]]
-
-        -- xs in the Riemann sum aren't evenly distributed across probability
-        -- space, but that's ok for now
-        mus = zipWith (\alpha row -> alpha - 0.5 * sum row) alphas covars
-        stdevs = [sqrt $ covars!!i!!i | i <- [0..2]]
-        xs = zipWith4 (\mu sd wt z -> mu + sd * sqrt (abs wt) * signum wt * z) mus stdevs weights zScores
-        ys = map exp xs
-
-        -- pdf = lognormPDF ys mus covars  -- this is the supposedly correct one
-        -- pdf = lognormPDF (map exp zScores) [0,0,0] [[1,0,0],[0,1,0],[0,0,1]]
-        -- pdf = lognormPDF (map exp $ zipWith (*) (map sqrt [0.03, 0.02, 0.025]) zScores) [0,0,0] [[0.03,0,0],[0,0.02,0],[0,0,0.025]]
-        pdf = lognormPDF (map exp $ zipWith (*) (map sqrt [0.03, 0.02, 0.025]) zScores) [0,0,0] [[0.03,0,0],[0,0.02,0],[0,0,0.025]]
-        -- pdf = lognormPDF [exp 0, exp 0, exp 0] [0,0,0] [[0.03,0,0],[0,0.02,0],[0,0,0.025]]
-
-        wealth = exp $ sum $ take 2 xs
-        co2 = ys!!2
-        u = utility wealth co2
-        width = integralTrapezoidWidth**3 * product ys
-    -- in u * pdf * width
-    in pdf * width
-  ) integralPoints
+  ) integralRanges
 
 
 gradientDescentIO :: ([Double] -> Double) -> [Double] -> Double -> Int -> IO ([Double])
