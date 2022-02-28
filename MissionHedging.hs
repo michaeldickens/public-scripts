@@ -85,7 +85,7 @@ uniLognormPDF' y mu cov = (1 / sqrt (2*pi * cov)) * (1 / y) * exp ((-0.5) * (log
 
 -- With 6 stdev, the Riemann sum is a slight overestimate. With 5 stdev, it's a slight underestimate
 integralMaxStdev = 5 :: Double
-integralNumDivisions = 12 :: Int
+integralNumDivisions = 15 :: Int
 integralTrapezoidWidth = integralMaxStdev / fromIntegral integralNumDivisions
 
 
@@ -136,45 +136,42 @@ ostensiblyIrrelevantOffset = 0
 
 -- TODO: optimal allocation changes wrt k, but it shouldn't
 utility :: Double -> Double -> Double
--- utility = multiCrraUtility rra
-utility wealth bad = (wealth**(1 - rra) - ostensiblyIrrelevantOffset) / (1 - rra)
-  where rra = 1.1
+utility = multiCrraUtility rra
+-- utility wealth bad = (wealth**(1 - rra) - ostensiblyIrrelevantOffset) / (1 - rra)
+-- utility wealth bad = log wealth * bad
+  where rra = 1.5
 
 
 expectedUtility :: [Double] -> Double
 expectedUtility weights' =
-  sum $ map (
-  \rectRanges ->
-    let (alphas', covars') = modelDistribution
-        weights = weights' ++ [1]  -- dummy weight for badThing
+  let (alphas', covars') = modelDistribution
+      weights = weights' ++ [1]  -- dummy weight for badThing
 
-        alphas = zipWith (*) weights alphas'
-        covars = [[weights!!i * weights!!j * covars'!!i!!j | i <- [0..2]] | j <- [0..2]]
+      alphas = zipWith (*) weights alphas'
+      covars = [[weights!!i * weights!!j * covars'!!i!!j | i <- [0..2]] | j <- [0..2]]
 
-        stdevs = [sqrt $ covars!!i!!i | i <- [0..2]]
-        mus = zipWith (\alpha sd -> alpha - 0.5 * sd**2) alphas stdevs
+      stdevs = [sqrt $ covars!!i!!i | i <- [0..2]]
+      mus = zipWith (\alpha sd -> alpha - 0.5 * sd**2) alphas stdevs
 
-        -- | Transform from standard normal space to nonstandard lognormal space
-        transform point = zipWith3 (\mu sd x -> exp $ mu + sd * x) mus stdevs point
-        -- transform point = zipWith3 (\mu row x ->
-        --                               let v = (sum $ map (* x) row)
-        --                               in exp $ mu + sqrt (abs v) * signum v) mus covars point
+      -- | Transform from standard normal space to nonstandard lognormal space
+      transform point = zipWith3 (\mu sd x -> exp $ mu + sd * x) mus stdevs point
+  in sum $ map (
+      \rectRanges ->
+        let yLower = transform $ map fst rectRanges
+            yUpper = transform $ map snd rectRanges
+            ys = transform $ map (\(e, s) -> (e + s) / 2) rectRanges
+            width = abs $ product $ zipWith (-) yUpper yLower
+            pdf = lognormPDF ys mus covars
 
-        yLower = transform $ map fst rectRanges
-        yUpper = transform $ map snd rectRanges
-        ys = transform $ map (\(e, s) -> (e + s) / 2) rectRanges
-        width = abs $ product $ zipWith (-) yUpper yLower
-        pdf = lognormPDF ys mus covars
+            -- Recall that ys are already weighted by portfolio allocation. Per
+            -- Irlam, you can think of this as holding y[0] for a proportionate
+            -- length of time, then holding y[1].
+            wealth = product $ take 2 ys
 
-        -- Recall that ys are already weighted by portfolio allocation. Per
-        -- Irlam, you can think of this as holding y[0] for a proportionate
-        -- length of time, then holding y[1].
-        wealth = product $ take 2 ys
-
-        badThing = ys!!2
-        u = utility wealth badThing
-    in u * pdf * width
-  ) integralRanges
+            badThing = ys!!2
+            u = utility wealth badThing
+        in u * pdf * width
+      ) integralRanges
 
 
 getGradient :: ([Double] -> Double) -> [Double] -> [Double]
@@ -212,7 +209,7 @@ gradientAscentIO f initialGuess scale = go initialGuess numSteps
                return x
              else do
                printInfo x fx
-               printf " (step %d) -> [%.5f, %.5f]\r" (numSteps - stepsLeft + 1) (gradient!!0) (gradient!!1)
+               printf " (step %d)\r" (numSteps - stepsLeft + 1)
                go (zipWith3 (\xi s g -> xi + s * g) x scale gradient) (stepsLeft - 1)
 
         printInfo x fx = printf "EU(%.3f, %.3f) = %.4f" (x!!0) (x!!1) fx
@@ -243,9 +240,9 @@ main = do
   let (alphas, covars) = modelDistribution
 
   let printEU x = printf "EU(%.3f, %.3f) = %.4f\n" (x!!0) (x!!1) (expectedUtility x)
-  print $ (10 - 10*ostensiblyIrrelevantOffset) + expectedUtility [1.878, -0.012]
-  print $ getGradient expectedUtility [1.878, -0.012]
-  weights <- gradientAscentIO expectedUtility ([1.5, 0.25]) [5, 5]
+  -- print $ (10 - 10*ostensiblyIrrelevantOffset) + expectedUtility [1.878, -0.012]
+  -- print $ getGradient expectedUtility [1.878, -0.012]
+  weights <- gradientAscentIO expectedUtility ([1.5, 0.25]) [15, 15]
   -- sequence $ map (\hedge -> printf "%.4f: %.5f\n" (hedge::Double) (expectedUtility [1.557, hedge])) $ filter (/= 0) $ map ((/ 10000) . fromIntegral) [(-50 :: Int)..50]
   -- weights <- gradientAscentIO expectedUtility ([0.5, -1]) [5, 5]
   return ()
