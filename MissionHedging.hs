@@ -58,7 +58,7 @@ multiNormRVs zScores alphas covars =
   alphas covars
 
 
--- | Multivariate lognormal PDF
+-- | Multivariate lognormal PDF.
 --
 -- Same as a normal PDF but where input vector `ys` is transformed by taking the
 -- logarithm, and whole thing is multiplied by `det(Jacobian(ys))` = `1 /
@@ -83,27 +83,37 @@ lognormPDF ys mus covars =
 uniLognormPDF' y mu cov = (1 / sqrt (2*pi * cov)) * (1 / y) * exp ((-0.5) * (log y - mu)**2 / cov)
 
 
--- With 6 stdev, the Riemann sum is a slight overestimate. With 5 stdev, it's a slight underestimate
-integralMaxStdev = 5 :: Double
-integralNumDivisions = 15 :: Int
-integralTrapezoidWidth = integralMaxStdev / fromIntegral integralNumDivisions
+-- With 6 stdev, the Riemann sum is a slight overestimate. With 5 stdev, it's a
+-- slight underestimate.
+--
+-- For a single variable, 5 standard deviations cover 99.99994% of the
+-- probability space (less than one millionth of the space is excluded). For
+-- independent three-variable, 5 stdevs cover 99.9998%, and the coverage goes up
+-- as correlation increases. (That's better coverage than Amazon S3)
+integralMaxStdev = 6 :: Double
 
 
-integralPoints :: [[Double]]
-integralPoints = [[x, y, z] | x <- uniPoints, y <- uniPoints, z <- uniPoints, abs x + abs y + abs z < 15]
-  where uniPoints = map ((* integralTrapezoidWidth) . fromIntegral) [(-integralNumDivisions)..integralNumDivisions]
+integralPoints :: Int -> [[Double]]
+integralPoints numTrapezoids = [[x, y, z] | x <- uniPoints, y <- uniPoints, z <- uniPoints, abs x + abs y + abs z < 15]
+  where uniPoints = map ((* trapezoidWidth) . fromIntegral) [(-numTrapezoids)..numTrapezoids]
+        trapezoidWidth = integralMaxStdev / fromIntegral numTrapezoids
 
 
-integralRanges :: [[(Double, Double)]]
-integralRanges = [[x, y, z] | x <- uniRanges, y <- uniRanges, z <- uniRanges]
-  where uniPoints = map ((* integralTrapezoidWidth) . fromIntegral) [(-integralNumDivisions)..integralNumDivisions]
+integralRanges :: Int -> [[(Double, Double)]]
+integralRanges numTrapezoids = [[x, y, z] | x <- uniRanges, y <- uniRanges, z <- uniRanges]
+  where uniPoints = map ((* trapezoidWidth) . fromIntegral) [(-numTrapezoids)..numTrapezoids]
         uniRanges = zip uniPoints (tail uniPoints)
+        trapezoidWidth = integralMaxStdev / fromIntegral numTrapezoids
+
+
+rra :: Double
+rra = 1.5
 
 
 modelDistribution :: ([Double], [[Double]])
 modelDistribution =
-  let alphas = [0.08, 0.00, 0.05] :: [Double]
-      sigmas = diagl [0.18, 0.18, 0.02] :: Matrix Double
+  let alphas = [0.08, 0.00, 0.10] :: [Double]
+      sigmas = diagl [0.18, 0.18, 0.20] :: Matrix Double
       hedgeCorrelation = 0.5
       correlations = (3><3)
         [ 1, 0               , 0
@@ -126,29 +136,39 @@ crraUtility rra wealth = (wealth**(1 - rra) - 1) / (1 - rra)
 -- dU/db < 0                  (utility decreases with bad thing)
 -- d^2 U / dw^2 < 0           (diminishing marginal utility of wealth)
 -- d^2 U / dw db > 0          (wealth becomes more useful as bad thing increases)
--- lim(w -> inf) U(w, b) = 0  (infinite wealth fully cancels out bad thing)
+-- lim(w -> inf) dU/db = 0    (infinite wealth fully cancels out bad thing)
 multiCrraUtility :: Double -> Double -> Double -> Double
+multiCrraUtility 1 wealth bad = bad * log wealth - bad
 multiCrraUtility rra wealth bad = bad * (wealth**(1 - rra)) / (1 - rra)
-
-
-ostensiblyIrrelevantOffset = 0
 
 
 -- TODO: optimal allocation changes wrt k, but it shouldn't
 utility :: Double -> Double -> Double
 utility = multiCrraUtility rra
--- utility wealth bad = (wealth**(1 - rra) - ostensiblyIrrelevantOffset) / (1 - rra)
--- utility wealth bad = log wealth * bad
-  where rra = 1.5
+-- utility wealth bad = crraUtility rra wealth
 
 
-expectedUtility :: [Double] -> Double
-expectedUtility weights' =
+-- | Compute expected utility using the Trapezoid rule.
+--
+-- numTrapezoids: Number of trapezoids to use per direction. For a
+-- 3-dimensional integral, there are 6 directions = (2*numTrapezoids)^3 total
+-- trapezoids.
+--
+-- weights': a length-2 vector of weights for the first two variables (market
+-- asset and hedge asset). The third variable (quantity of bad thing) always has
+-- a weight of 1.
+expectedUtilityTrapezoid :: Int -> [Double] -> Double
+expectedUtilityTrapezoid numTrapezoids weights' =
   let (alphas', covars') = modelDistribution
       weights = weights' ++ [1]  -- dummy weight for badThing
 
-      alphas = zipWith (*) weights alphas'
-      covars = [[weights!!i * weights!!j * covars'!!i!!j | i <- [0..2]] | j <- [0..2]]
+      -- Note: If numYears > 1, gradientAscent needs to use a smaller `scale` or
+      -- else it will fail to converge.
+      numYears = 1
+
+      -- TODO: Not 100% sure I am scaling correctly with numYears
+      alphas = map (* numYears) $ zipWith (*) weights alphas'
+      covars = [[numYears * weights!!i * weights!!j * covars'!!i!!j | i <- [0..2]] | j <- [0..2]]
 
       stdevs = [sqrt $ covars!!i!!i | i <- [0..2]]
       mus = zipWith (\alpha sd -> alpha - 0.5 * sd**2) alphas stdevs
@@ -163,15 +183,30 @@ expectedUtility weights' =
             width = abs $ product $ zipWith (-) yUpper yLower
             pdf = lognormPDF ys mus covars
 
-            -- Recall that ys are already weighted by portfolio allocation. Per
-            -- Irlam, you can think of this as holding y[0] for a proportionate
-            -- length of time, then holding y[1].
+            -- Recall that ys are already weighted by portfolio allocation. You
+            -- can think of this as holding y[0] for a proportionate length of
+            -- time, then holding y[1].
             wealth = product $ take 2 ys
 
             badThing = ys!!2
             u = utility wealth badThing
         in u * pdf * width
-      ) integralRanges
+      ) $ integralRanges numTrapezoids
+
+
+-- | Use Richardson's extrapolation formula for the trapezoid rule (equivalent
+-- to the Romberg rule with a single iteration).
+--
+-- Empirical tests suggest that, for n = number of trapezoids, Richardson(2n=8)
+-- is more accurate than Trapezoid(n=40), and >100x faster.
+--
+-- See https://mathforcollege.com/nm/mws/gen/07int/mws_gen_int_txt_romberg.pdf
+expectedUtility :: [Double] -> Double
+expectedUtility weights =
+  let numTrapezoids = 6
+      bigTrap = expectedUtilityTrapezoid numTrapezoids weights
+      smallTrap = expectedUtilityTrapezoid (2 * numTrapezoids) weights
+  in smallTrap + (smallTrap - bigTrap) / 3
 
 
 getGradient :: ([Double] -> Double) -> [Double] -> [Double]
@@ -218,6 +253,11 @@ gradientAscentIO f initialGuess scale = go initialGuess numSteps
 -- | Approximate geometric mean of an investment portfolio.
 --
 -- From Estrada (2010), "Geometric Mean Maximization: An Overlooked Portfolio Approach?"
+
+
+-- | Approximate geometric mean of an investment portfolio.
+--
+-- From Estrada (2010), "Geometric Mean Maximization: An Overlooked Portfolio Approach?"
 -- https://blog.iese.edu/jestrada/files/2012/06/GMM-Extended.pdf
 --
 -- TODO: For some reason, the naive (alpha - cov/2) formula is a much better
@@ -240,9 +280,5 @@ main = do
   let (alphas, covars) = modelDistribution
 
   let printEU x = printf "EU(%.3f, %.3f) = %.4f\n" (x!!0) (x!!1) (expectedUtility x)
-  -- print $ (10 - 10*ostensiblyIrrelevantOffset) + expectedUtility [1.878, -0.012]
-  -- print $ getGradient expectedUtility [1.878, -0.012]
   weights <- gradientAscentIO expectedUtility ([1.5, 0.25]) [15, 15]
-  -- sequence $ map (\hedge -> printf "%.4f: %.5f\n" (hedge::Double) (expectedUtility [1.557, hedge])) $ filter (/= 0) $ map ((/ 10000) . fromIntegral) [(-50 :: Int)..50]
-  -- weights <- gradientAscentIO expectedUtility ([0.5, -1]) [5, 5]
   return ()
