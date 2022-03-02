@@ -93,16 +93,18 @@ uniLognormPDF' y mu cov = (1 / sqrt (2*pi * cov)) * (1 / y) * exp ((-0.5) * (log
 integralMaxStdev = 6 :: Double
 
 
-integralPoints :: Int -> [[Double]]
-integralPoints numTrapezoids = [[x, y, z] | x <- uniPoints, y <- uniPoints, z <- uniPoints, abs x + abs y + abs z < 15]
+integralPoints :: Int -> Int -> [[Double]]
+integralPoints dimension numTrapezoids =
+  foldl (\agg _ -> concatMap (\xs -> map (:xs) uniPoints) agg) [[]] [1..dimension]
   where uniPoints = map ((* trapezoidWidth) . fromIntegral) [(-numTrapezoids)..numTrapezoids]
         trapezoidWidth = integralMaxStdev / fromIntegral numTrapezoids
 
 
-integralRanges :: Int -> [[(Double, Double)]]
-integralRanges numTrapezoids = [[x, y, z] | x <- uniRanges, y <- uniRanges, z <- uniRanges]
+integralRanges :: Int -> Int -> [[(Double, Double)]]
+integralRanges dimension numTrapezoids =
+  foldl (\agg _ -> concatMap (\xs -> map (:xs) uniRanges) agg) [[]] [1..dimension]
   where uniPoints = map ((* trapezoidWidth) . fromIntegral) [(-numTrapezoids)..numTrapezoids]
-        uniRanges = zip uniPoints (tail uniPoints)
+        uniRanges = zip uniPoints (tail uniPoints) :: [(Double, Double)]
         trapezoidWidth = integralMaxStdev / fromIntegral numTrapezoids
 
 
@@ -110,7 +112,8 @@ rra :: Double
 rra = 1.5
 
 
-modelDistribution :: ([Double], [[Double]])
+-- | Return: (alpha vector, covariance matrix, dimension)
+modelDistribution :: ([Double], [[Double]], Int)
 modelDistribution =
   let alphas = [0.08, 0.00, 0.10] :: [Double]
       sigmas = diagl [0.18, 0.18, 0.20] :: Matrix Double
@@ -121,7 +124,24 @@ modelDistribution =
         , 0, hedgeCorrelation, 1
         ] :: Matrix Double
       covariances = toLists $ (sigmas <> correlations) <> sigmas
-  in (alphas, covariances)
+  in (alphas, covariances, 3)
+
+
+-- MVO, legacy, hedge, bad thing
+modelDistribution4 :: ([Double], [[Double]], Int)
+modelDistribution4 =
+  let alphas = [0.08, 0.08, 0.00, 0.10] :: [Double]
+      sigmas = diagl [0.18, 0.36, 0.18, 0.20] :: Matrix Double
+      hedgeCorr = 0.9
+      legacyCorr = 0.5
+      correlations = (4><4)
+        [ 1         , legacyCorr, 0        , 0
+        , legacyCorr, 1     , 0        , 0
+        , 0         , 0     , 1        , hedgeCorr
+        , 0         , 0     , hedgeCorr, 1
+        ] :: Matrix Double
+      covariances = toLists $ (sigmas <> correlations) <> sigmas
+  in (alphas, covariances, 4)
 
 
 -- | Utility function with constant relative risk aversion.
@@ -142,10 +162,8 @@ multiCrraUtility 1 wealth bad = bad * log wealth - bad
 multiCrraUtility rra wealth bad = bad * (wealth**(1 - rra)) / (1 - rra)
 
 
--- TODO: optimal allocation changes wrt k, but it shouldn't
 utility :: Double -> Double -> Double
 utility = multiCrraUtility rra
--- utility wealth bad = crraUtility rra wealth
 
 
 -- | Compute expected utility using the Trapezoid rule.
@@ -159,7 +177,7 @@ utility = multiCrraUtility rra
 -- a weight of 1.
 expectedUtilityTrapezoid :: Int -> [Double] -> Double
 expectedUtilityTrapezoid numTrapezoids weights' =
-  let (alphas', covars') = modelDistribution
+  let (alphas', covars', dim) = modelDistribution
       weights = weights' ++ [1]  -- dummy weight for badThing
 
       -- Note: If numYears > 1, gradientAscent needs to use a smaller `scale` or
@@ -168,9 +186,9 @@ expectedUtilityTrapezoid numTrapezoids weights' =
 
       -- TODO: Not 100% sure I am scaling correctly with numYears
       alphas = map (* numYears) $ zipWith (*) weights alphas'
-      covars = [[numYears * weights!!i * weights!!j * covars'!!i!!j | i <- [0..2]] | j <- [0..2]]
+      covars = [[numYears * weights!!i * weights!!j * covars'!!i!!j | i <- [0..dim-1]] | j <- [0..dim-1]]
 
-      stdevs = [sqrt $ covars!!i!!i | i <- [0..2]]
+      stdevs = [sqrt $ covars!!i!!i | i <- [0..dim-1]]
       mus = zipWith (\alpha sd -> alpha - 0.5 * sd**2) alphas stdevs
 
       -- | Transform from standard normal space to nonstandard lognormal space
@@ -186,12 +204,12 @@ expectedUtilityTrapezoid numTrapezoids weights' =
             -- Recall that ys are already weighted by portfolio allocation. You
             -- can think of this as holding y[0] for a proportionate length of
             -- time, then holding y[1].
-            wealth = product $ take 2 ys
+            wealth = product $ init ys
 
-            badThing = ys!!2
+            badThing = last ys
             u = utility wealth badThing
         in u * pdf * width
-      ) $ integralRanges numTrapezoids
+      ) $ integralRanges dim numTrapezoids
 
 
 -- | Use Richardson's extrapolation formula for the trapezoid rule (equivalent
@@ -253,11 +271,6 @@ gradientAscentIO f initialGuess scale = go initialGuess numSteps
 -- | Approximate geometric mean of an investment portfolio.
 --
 -- From Estrada (2010), "Geometric Mean Maximization: An Overlooked Portfolio Approach?"
-
-
--- | Approximate geometric mean of an investment portfolio.
---
--- From Estrada (2010), "Geometric Mean Maximization: An Overlooked Portfolio Approach?"
 -- https://blog.iese.edu/jestrada/files/2012/06/GMM-Extended.pdf
 --
 -- TODO: For some reason, the naive (alpha - cov/2) formula is a much better
@@ -277,8 +290,7 @@ geometricMean alphas covars weights =
 -- TODO: The problem is that integration isn't very accurate when weights are small, eg with hedge weight = 0.01, integral only covers 45% of the probability space
 main :: IO ()
 main = do
-  let (alphas, covars) = modelDistribution
+  let (alphas, covars, dim) = modelDistribution
 
-  let printEU x = printf "EU(%.3f, %.3f) = %.4f\n" (x!!0) (x!!1) (expectedUtility x)
   weights <- gradientAscentIO expectedUtility ([1.5, 0.25]) [15, 15]
   return ()
