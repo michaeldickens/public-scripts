@@ -10,30 +10,62 @@ Created     : 2022-02-21
 
 module Main where
 
-import Control.Parallel
 import Data.List as List
 import qualified Data.Vector.Storable as Vec
 import Debug.Trace
 import Numeric.LinearAlgebra
 import Numeric.LinearAlgebra.HMatrix
 import Prelude hiding ((<>))
-import System.Random
 import Text.Printf
+
+
+{-| Data Definitions -}
+
+
+-- | utility: Function from wealth and quantity of bad thing to utility
+-- alphas: Arithmetic means of random variables
+-- covariances: Covariances between random variables
+-- dimension: Number of random variables
+data ModelParameters = ModelParameters
+  { utility :: Double -> Double -> Double
+  , alphas :: [Double]
+  , covariances :: [[Double]]
+  , dimension :: Int
+  }
+
+
+{-|
+
+Helper Functions
+
+-}
 
 
 traceShowSelf x = traceShow x x
 
 
+-- | Update the element of a list at index `i` by passing it to the given
+-- function.
 updateAt :: Int -> (a -> a) -> [a] -> [a]
 updateAt i f xs = go i xs
   where go 0 (x:xs) = (f x) : xs
         go j (x:xs) = x : (go (j-1) xs)
 
 
+{-|
+
+Probability Distribution Functions
+
+-}
+
+
+-- | Probability density of a standard normal distribution.
 standardNormalPDF :: [Double] -> Double
 standardNormalPDF zs = (1 / sqrt ((2 * pi)**(fromIntegral $ length zs))) * exp (-0.5 * (sum $ map (**2) zs))
 
 
+-- | Probability density of a multivariate normal distribution, parameterized by
+-- a mean vector and a covariance matrix.
 multiNormPDF :: [Double] -> [Double] -> [[Double]] -> Double
 multiNormPDF xs means covars =
   (exp $ (-0.5) * ((residuals <# inv covMat) `dot` residuals))
@@ -42,20 +74,6 @@ multiNormPDF xs means covars =
   where residuals = Vec.fromList $ zipWith (-) xs means
         k = fromIntegral $ length xs
         covMat = fromLists covars
-
-
-multiNormRVs :: [Double] -> [Double] -> [[Double]] -> [Double]
-multiNormRVs zScores alphas covars =
-  -- TODO: What if covariance is negative?
-
-  -- TODO: expectedUtility never changes when I change the 3rd term. It looks
-  -- like the 3rd term is symmetric so it cancels out over the full integral,
-  -- and the first 2 terms happen to be the expected utility with U = log w, so
-  -- it still works with log utility.
-  zipWith
-  (\alpha row -> alpha - 0.5 * sum row + (sum $ zipWith (\z cov -> z * sqrt cov) zScores row))
-  -- (\alpha row -> alpha - 0.5 * sum row)
-  alphas covars
 
 
 -- | Multivariate lognormal PDF.
@@ -67,7 +85,9 @@ multiNormRVs zScores alphas covars =
 -- https://math.stackexchange.com/questions/267267/intuitive-proof-of-multivariable-changing-of-variables-formula-jacobian-withou
 --
 -- ys: n-dimensional random variable
+--
 -- mus: means of the underlying normal distributions
+--
 -- covars: covariance matrix for the underlying normal distributions
 lognormPDF :: [Double] -> [Double] -> [[Double]] -> Double
 lognormPDF ys mus covars =
@@ -83,7 +103,13 @@ lognormPDF ys mus covars =
 uniLognormPDF' y mu cov = (1 / sqrt (2*pi * cov)) * (1 / y) * exp ((-0.5) * (log y - mu)**2 / cov)
 
 
--- With 6 stdev, the Riemann sum is a slight overestimate. With 5 stdev, it's a
+{-| Expected Utility Calculation Functions -}
+
+
+-- | Internal parameter. When integrating over a normal probability
+-- distribution, cover this many standard deviations in each direction.
+--
+-- With 6 stdev, the integral is a slight overestimate. With 5 stdev, it's a
 -- slight underestimate.
 --
 -- For a single variable, 5 standard deviations cover 99.99994% of the
@@ -93,80 +119,27 @@ uniLognormPDF' y mu cov = (1 / sqrt (2*pi * cov)) * (1 / y) * exp ((-0.5) * (log
 integralMaxStdev = 6 :: Double
 
 
-integralPoints :: Int -> Int -> [[Double]]
-integralPoints dimension numTrapezoids =
-  foldl (\agg _ -> concatMap (\xs -> map (:xs) uniPoints) agg) [[]] [1..dimension]
-  where uniPoints = map ((* trapezoidWidth) . fromIntegral) [(-numTrapezoids)..numTrapezoids]
-        trapezoidWidth = integralMaxStdev / fromIntegral numTrapezoids
-
-
+-- | A list of ranges to be used for numeric integration. A range is defined by
+-- a list of pairs giving the minimum and maximum of the range, with one pair
+-- for each dimension.
+--
+-- dimension: Number of dimensions over which to integrate.
+--
+-- numTrapezoids: Number of trapezoids to use in the positive direction along
+-- one dimension. The negative direction uses the same number of trapezoids. The
+-- total number of trapezoids will be `(2*numTrapezoids)^dimension`.
 integralRanges :: Int -> Int -> [[(Double, Double)]]
 integralRanges dimension numTrapezoids =
-  foldl (\agg _ -> concatMap (\xs -> map (:xs) uniRanges) agg) [[]] [1..dimension]
-  where uniPoints = map ((* trapezoidWidth) . fromIntegral) [(-numTrapezoids)..numTrapezoids]
-        uniRanges = zip uniPoints (tail uniPoints) :: [(Double, Double)]
-        trapezoidWidth = integralMaxStdev / fromIntegral numTrapezoids
+  -- For each iteration, take the existing list of ranges, copy each list `len
+  -- uniRanges` times, and prepend one element of `uniRanges` to each copy
+  (iterate (concatMap (\xs -> map (:xs) uniRanges)) [[]]) !! dimension
+
+  where trapezoidWidth = integralMaxStdev / fromIntegral numTrapezoids
+        uniCoords = map ((* trapezoidWidth) . fromIntegral) [(-numTrapezoids)..numTrapezoids]
+        uniRanges = zip uniCoords (tail uniCoords) :: [(Double, Double)]
 
 
-rra :: Double
-rra = 1.5
-
-
--- | Return: (alpha vector, covariance matrix, dimension)
-modelDistribution :: ([Double], [[Double]], Int)
-modelDistribution =
-  let alphas = [0.08, 0.00, 0.10] :: [Double]
-      sigmas = diagl [0.18, 0.18, 0.20] :: Matrix Double
-      hedgeCorrelation = 0.5
-      correlations = (3><3)
-        [ 1, 0               , 0
-        , 0, 1               , hedgeCorrelation
-        , 0, hedgeCorrelation, 1
-        ] :: Matrix Double
-      covariances = toLists $ (sigmas <> correlations) <> sigmas
-  in (alphas, covariances, 3)
-
-
--- MVO, legacy, hedge, bad thing
-modelDistribution4 :: ([Double], [[Double]], Int)
-modelDistribution4 =
-  let alphas = [0.08, 0.08, 0.00, 0.10] :: [Double]
-      sigmas = diagl [0.18, 0.36, 0.18, 0.20] :: Matrix Double
-      hedgeCorr = 0.9
-      legacyCorr = 0.5
-      correlations = (4><4)
-        [ 1         , legacyCorr, 0        , 0
-        , legacyCorr, 1     , 0        , 0
-        , 0         , 0     , 1        , hedgeCorr
-        , 0         , 0     , hedgeCorr, 1
-        ] :: Matrix Double
-      covariances = toLists $ (sigmas <> correlations) <> sigmas
-  in (alphas, covariances, 4)
-
-
--- | Utility function with constant relative risk aversion.
-crraUtility :: Double -> Double -> Double
-crraUtility 1 wealth = log wealth
-crraUtility rra wealth = (wealth**(1 - rra) - 1) / (1 - rra)
-
-
--- | For rra > 1, this utility function has the following properties:
---
--- dU/dw > 0                  (utility increases with wealth)
--- dU/db < 0                  (utility decreases with bad thing)
--- d^2 U / dw^2 < 0           (diminishing marginal utility of wealth)
--- d^2 U / dw db > 0          (wealth becomes more useful as bad thing increases)
--- lim(w -> inf) dU/db = 0    (infinite wealth fully cancels out bad thing)
-multiCrraUtility :: Double -> Double -> Double -> Double
-multiCrraUtility 1 wealth bad = bad * log wealth - bad
-multiCrraUtility rra wealth bad = bad * (wealth**(1 - rra)) / (1 - rra)
-
-
-utility :: Double -> Double -> Double
-utility = multiCrraUtility rra
-
-
--- | Compute expected utility using the Trapezoid rule.
+-- | Numerically compute expected utility using the Trapezoid Rule.
 --
 -- numTrapezoids: Number of trapezoids to use per direction. For a
 -- 3-dimensional integral, there are 6 directions = (2*numTrapezoids)^3 total
@@ -175,10 +148,9 @@ utility = multiCrraUtility rra
 -- weights': a length-2 vector of weights for the first two variables (market
 -- asset and hedge asset). The third variable (quantity of bad thing) always has
 -- a weight of 1.
-expectedUtilityTrapezoid :: Int -> [Double] -> Double
-expectedUtilityTrapezoid numTrapezoids weights' =
-  let (alphas', covars', dim) = modelDistribution
-      weights = weights' ++ [1]  -- dummy weight for badThing
+expectedUtilityTrapezoid :: ModelParameters -> Int -> [Double] -> Double
+expectedUtilityTrapezoid (ModelParameters utility alphas' covars' dim) numTrapezoids weights' =
+  let weights = weights' ++ [1]  -- dummy weight for badThing
 
       -- Note: If numYears > 1, gradientAscent needs to use a smaller `scale` or
       -- else it will fail to converge.
@@ -212,37 +184,56 @@ expectedUtilityTrapezoid numTrapezoids weights' =
       ) $ integralRanges dim numTrapezoids
 
 
--- | Use Richardson's extrapolation formula for the trapezoid rule (equivalent
--- to the Romberg rule with a single iteration).
+-- | Numerically compute expected utility of a portfolio with the given weights.
 --
+-- Inputs should satisfy `length weights = dimension modelParams - 1` because
+-- the last dimension covers the bad thing, which does not have a portfolio
+-- weight.
+--
+-- Implemented using Richardson's extrapolation formula for the trapezoid rule.
 -- Empirical tests suggest that, for n = number of trapezoids, Richardson(2n=8)
 -- is more accurate than Trapezoid(n=40), and >100x faster.
 --
 -- See https://mathforcollege.com/nm/mws/gen/07int/mws_gen_int_txt_romberg.pdf
-expectedUtility :: [Double] -> Double
-expectedUtility weights =
+expectedUtility :: ModelParameters -> [Double] -> Double
+expectedUtility modelParams weights =
   let numTrapezoids = 6
-      bigTrap = expectedUtilityTrapezoid numTrapezoids weights
-      smallTrap = expectedUtilityTrapezoid (2 * numTrapezoids) weights
+      bigTrap = expectedUtilityTrapezoid modelParams numTrapezoids weights
+      smallTrap = expectedUtilityTrapezoid modelParams (2 * numTrapezoids) weights
   in smallTrap + (smallTrap - bigTrap) / 3
 
 
+{-|
+
+Optimization Functions
+
+-}
+
+
+-- | Numerically compute the gradient of a multivariate function.
 getGradient :: ([Double] -> Double) -> [Double] -> [Double]
-getGradient f x = map (\i -> (f (updateAt i (+h) x) - fx) / h) [0..(length x - 1)]
-  where fx = f x
-        h = 0.0001
+getGradient f x = getGradient' f x (f x)
+
+
+-- | Numerically compute the gradient of a multivariate function, supplying the function value at the current location as input. Use this rather than `getGradient` when computing `f x` is expensive.
+getGradient' :: ([Double] -> Double) -> [Double] -> Double -> [Double]
+getGradient' f x fx = map (\i -> (f (updateAt i (+h) x) - fx) / h) [0..(length x - 1)]
+  where h = 0.0001
+
 
 
 -- | Perform gradient ascent, printing the results at each step.
 --
--- - f :: [Double] -> Double: The function to be maximized.
--- - initialGuess :: [Double]: The point at which to begin gradient ascent.
--- - scale :: [Double]: A parameter that determines the speed of ascent for each
---   parameter. A larger value means it will converge faster, but too large of a
---   scale means it will fail to converge.
+-- f :: [Double] -> Double: The function to be maximized.
+--
+-- initialGuess :: [Double]: The point at which to begin gradient ascent.
+--
+-- scale :: Double: A parameter that determines the speed of ascent for each
+-- parameter. A larger value means it will converge faster, but too large of a
+-- scale means it will fail to converge.
 --
 -- Gradient ascent halts if it does not converge after a certain number of steps.
-gradientAscentIO :: ([Double] -> Double) -> [Double] -> [Double] -> IO ([Double])
+gradientAscentIO :: ([Double] -> Double) -> [Double] -> Double -> IO ([Double])
 gradientAscentIO f initialGuess scale = go initialGuess numSteps
   where numSteps = 100
         go :: [Double] -> Int -> IO ([Double])
@@ -251,9 +242,8 @@ gradientAscentIO f initialGuess scale = go initialGuess numSteps
           printf " (failed to converge after %d steps)\n" numSteps
           return x
         go x stepsLeft =
-          let h = 0.0001
-              fx = f x
-              gradient = map (\i -> (f (updateAt i (+h) x) - fx) / h) [0..(length x - 1)]
+          let fx = f x
+              gradient = getGradient' f x fx
               distance = sqrt $ sum $ map (**2) gradient
           in if isNaN distance || distance < 0.00001
              then do
@@ -263,9 +253,9 @@ gradientAscentIO f initialGuess scale = go initialGuess numSteps
              else do
                printInfo x fx
                printf " (step %d)\r" (numSteps - stepsLeft + 1)
-               go (zipWith3 (\xi s g -> xi + s * g) x scale gradient) (stepsLeft - 1)
+               go (zipWith (\xi g -> xi + scale * g) x gradient) (stepsLeft - 1)
 
-        printInfo x fx = printf "EU(%.3f, %.3f) = %.4f" (x!!0) (x!!1) fx
+        printInfo x fx = printf "%s\rEU(%.3f, %.3f) = %.4f" (take 40 $ repeat ' ') (x!!0) (x!!1) fx
 
 
 -- | Approximate geometric mean of an investment portfolio.
@@ -287,10 +277,99 @@ geometricMean alphas covars weights =
         muVec = Vec.zipWith (\a v -> a - v**2 / 2) alphaVec varVec
 
 
--- TODO: The problem is that integration isn't very accurate when weights are small, eg with hedge weight = 0.01, integral only covers 45% of the probability space
+{-|
+
+Utility Functions
+
+-}
+
+
+-- | Utility function with constant relative risk aversion of wealth and linear
+-- scaling with the bad thing.
+--
+-- For rra > 1, this utility function has the following properties:
+--
+-- 1. dU/dw > 0                  (utility increases with wealth)
+-- 2. dU/db < 0                  (utility decreases with bad thing)
+-- 3. d^2 U / dw db > 0          (wealth becomes more useful as bad thing increases)
+-- 4. d^2 U / dw^2 < 0           (diminishing marginal utility of wealth)
+-- 5. constant relative risk aversion with respect to wealth
+-- 6. lim(w -> inf) dU/db = 0    (infinite wealth fully cancels out bad thing)
+crraUtility :: Double -> Double -> Double -> Double
+crraUtility 1 wealth bad = bad * log wealth - bad
+crraUtility rra wealth bad = bad * (wealth**(1 - rra)) / (1 - rra)
+
+
+-- | Assumptions behind this utility function:
+-- - AGI arrives by some date -> AGI progresses at some rate
+-- - Doing quantity Q of research has a probability p of preventing extinction
+-- - Need enough money to do Q research -> need some growth rate
+-- - Want to maximize probability of preventing extinction
+--
+-- Therefore, if growth rate of wealth exceeds a constant multiple of the growth
+-- rate of AI progress, utility = 1. Otherwise, utility = 0. Use a logistic
+-- function to make it smooth.
+--
+-- Referring to the properties of `crraUtility`, this function has properties 1
+-- and 2, but not 3, 4, 5, or 6. Generally speaking, this utility function is
+-- less well-behaved and harder to reason about.
+binaryUtility :: Double -> Double -> Double
+binaryUtility wealth bad = 1 / (1 + exp (1 - log wealth / log bad))
+
+
+{-|
+
+Main
+
+-}
+
+
+-- | Parameter set with three variables:
+-- 1. mean-variance optimal asset
+-- 2. hedge asset
+-- 3. bad thing
+standardParams :: ModelParameters
+standardParams =
+  let alphas = [0.08, 0.00, 0.10] :: [Double]
+      sigmas = diagl [0.18, 0.18, 0.20] :: Matrix Double
+      hedgeCorr = 0.5  -- correlation between hedge and bad thing
+      correlations = (3><3)
+        [ 1, 0        , 0
+        , 0, 1        , hedgeCorr
+        , 0, hedgeCorr, 1
+        ] :: Matrix Double
+      covariances = toLists $ (sigmas <> correlations) <> sigmas
+      utility = crraUtility 1.5
+  in ModelParameters utility alphas covariances 3
+
+
+-- | Parameter set with four variables:
+-- 1. mean-variance optimal asset
+-- 2. undesirable legacy asset
+-- 3. hedge asset
+-- 4. bad thing
+--
+-- Note: Computing expected utility over a four-dimensional space is very slow.
+legacyParams :: ModelParameters
+legacyParams =
+  let alphas = [0.08, 0.08, 0.00, 0.10] :: [Double]
+      sigmas = diagl [0.18, 0.36, 0.18, 0.20] :: Matrix Double
+      hedgeCorr = 0.5    -- correlation between hedge and bad thing
+      legacyCorr = 0.5   -- correlation between MVO asset and legacy asset
+      correlations = (4><4)
+        [ 1         , legacyCorr, 0        , 0
+        , legacyCorr, 1         , 0        , 0
+        , 0         , 0         , 1        , hedgeCorr
+        , 0         , 0         , hedgeCorr, 1
+        ] :: Matrix Double
+      covariances = toLists $ (sigmas <> correlations) <> sigmas
+      -- utility = crraUtility 1.5
+      utility = binaryUtility
+  in ModelParameters utility alphas covariances 4
+
+
 main :: IO ()
 main = do
-  let (alphas, covars, dim) = modelDistribution
-
-  weights <- gradientAscentIO expectedUtility ([1.5, 0.25]) [15, 15]
+  print $ getGradient (expectedUtility legacyParams) [0.5, 0.5, 0.001]
+  -- weights <- gradientAscentIO (expectedUtility standardParams) ([1.5, 0.25]) 15
   return ()
