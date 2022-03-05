@@ -5,8 +5,20 @@ Description :
 Maintainer  : Michael Dickens <michael@mdickens.me>
 Created     : 2022-02-21
 
+A quantitative model of the value of mission hedging.
+
+This program depends on these libraries: hmatrix, vector
+
+To use this program, create a ModelParameters object defining the input
+parameters. (See near the bottom of this file for some examples.) Then you can
+pass it to one of these functions:
+
+- gradientAscentIO: Find the asset allocation that maximizes utility.
+- getGradient: Find the marginal utility of changes in asset allocation at a
+  particluar point.
+- expectedUtility: Calculate the expected utility of a particular asset allocation.
+
 -}
-{-# LANGUAGE BangPatterns #-}
 
 module Main where
 
@@ -14,7 +26,6 @@ import Data.List as List
 import qualified Data.Vector.Storable as Vec
 import Debug.Trace
 import Numeric.LinearAlgebra
-import Numeric.LinearAlgebra.HMatrix
 import Prelude hiding ((<>))
 import Text.Printf
 
@@ -233,6 +244,9 @@ getGradient' f x fx = map (\i -> (f (updateAt i (+h) x) - fx) / h) [0..(length x
 -- scale means it will fail to converge.
 --
 -- Gradient ascent halts if it does not converge after a certain number of steps.
+--
+-- Example usage:
+--     gradientDescentIO (expectedUtility standardParams) [1, 1] 10
 gradientAscentIO :: ([Double] -> Double) -> [Double] -> Double -> IO ([Double])
 gradientAscentIO f initialGuess scale = go initialGuess numSteps
   where numSteps = 100
@@ -301,10 +315,10 @@ crraUtility rra wealth bad = bad * (wealth**(1 - rra)) / (1 - rra)
 
 
 -- | Assumptions behind this utility function:
--- - AGI arrives by some date -> AGI progresses at some rate
+-- - AGI arrives by some date -> equivalently, AGI progresses at some rate
 -- - Doing quantity Q of research has a probability p of preventing extinction
--- - Need enough money to do Q research -> need some growth rate
--- - Want to maximize probability of preventing extinction
+-- - Need enough money to do Q research -> equivalently, need some growth rate
+-- - Goal: maximize probability of preventing extinction
 --
 -- Therefore, if growth rate of wealth exceeds a constant multiple of the growth
 -- rate of AI progress, utility = 1. Otherwise, utility = 0. Use a logistic
@@ -313,8 +327,24 @@ crraUtility rra wealth bad = bad * (wealth**(1 - rra)) / (1 - rra)
 -- Referring to the properties of `crraUtility`, this function has properties 1
 -- and 2, but not 3, 4, 5, or 6. Generally speaking, this utility function is
 -- less well-behaved and harder to reason about.
-binaryUtility :: Double -> Double -> Double
-binaryUtility wealth bad = 1 / (1 + exp (1 - log wealth / log bad))
+--
+-- Gradient ascent over expected logistic utility fails to converge.
+--
+-- growthScale: The relative scale of the growth rates of wealth and the bad
+-- thing. Higher scale = the value of wealth grows faster (i.e., less wealth is
+-- required).
+logisticUtility :: Double -> Double -> Double -> Double
+logisticUtility growthScale wealth bad = 1 / (1 + exp (1 - growthScale * log wealth / log bad))
+
+
+-- | Utility function where the interaction between `wealth` and `bad` behaves
+-- like `crraUtility', but wealth also (independently) increases utility
+-- logarithmically.
+--
+-- This function satisfies all six criteria except for constant relative risk
+-- aversion.
+unboundedUtility :: Double -> Double -> Double -> Double
+unboundedUtility rra wealth bad = log wealth + crraUtility rra wealth bad
 
 
 {-|
@@ -330,16 +360,16 @@ Main
 -- 3. bad thing
 standardParams :: ModelParameters
 standardParams =
-  let alphas = [0.08, 0.00, 0.10] :: [Double]
-      sigmas = diagl [0.18, 0.18, 0.20] :: Matrix Double
-      hedgeCorr = 0.5  -- correlation between hedge and bad thing
+  let alphas = [0.08, 0.00, 0.05] :: [Double]
+      sigmas = diagl [0.18, 0.18, 0.03] :: Matrix Double
+      hedgeCorr = 0.9  -- correlation between hedge and bad thing
       correlations = (3><3)
         [ 1, 0        , 0
         , 0, 1        , hedgeCorr
         , 0, hedgeCorr, 1
         ] :: Matrix Double
       covariances = toLists $ (sigmas <> correlations) <> sigmas
-      utility = crraUtility 1.5
+      utility = crraUtility 1
   in ModelParameters utility alphas covariances 3
 
 
@@ -353,7 +383,7 @@ standardParams =
 legacyParams :: ModelParameters
 legacyParams =
   let alphas = [0.08, 0.08, 0.00, 0.10] :: [Double]
-      sigmas = diagl [0.18, 0.36, 0.18, 0.20] :: Matrix Double
+      sigmas = diagl [0.18, 0.36, 0.18, 0.30] :: Matrix Double
       hedgeCorr = 0.5    -- correlation between hedge and bad thing
       legacyCorr = 0.5   -- correlation between MVO asset and legacy asset
       correlations = (4><4)
@@ -363,13 +393,15 @@ legacyParams =
         , 0         , 0         , hedgeCorr, 1
         ] :: Matrix Double
       covariances = toLists $ (sigmas <> correlations) <> sigmas
-      -- utility = crraUtility 1.5
-      utility = binaryUtility
+      utility = crraUtility 1.5
   in ModelParameters utility alphas covariances 4
 
 
 main :: IO ()
 main = do
-  print $ getGradient (expectedUtility legacyParams) [0.5, 0.5, 0.001]
-  -- weights <- gradientAscentIO (expectedUtility standardParams) ([1.5, 0.25]) 15
+  -- print $ getGradient (expectedUtility legacyParams) [0.5, 0.5, 0.001]
+  weights <- gradientAscentIO (expectedUtility standardParams { utility = crraUtility 1 }) [1.5, 0.25] 15
+  weights <- gradientAscentIO (expectedUtility standardParams { utility = crraUtility 1.1 }) [1.5, 0.25] 15
+  weights <- gradientAscentIO (expectedUtility standardParams { utility = crraUtility 1.5 }) [1.5, 0.25] 15
+  weights <- gradientAscentIO (expectedUtility standardParams { utility = crraUtility 2 }) [1.5, 0.25] 15
   return ()
