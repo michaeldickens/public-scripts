@@ -42,6 +42,7 @@ data ModelParameters = ModelParameters
   , alphas :: [Double]
   , covariances :: [[Double]]
   , dimension :: Int
+  , predicted :: [Double]
   }
 
 
@@ -160,7 +161,7 @@ integralRanges dimension numTrapezoids =
 -- asset and hedge asset). The third variable (quantity of bad thing) always has
 -- a weight of 1.
 expectedUtilityTrapezoid :: ModelParameters -> Int -> [Double] -> Double
-expectedUtilityTrapezoid (ModelParameters utility alphas' covars' dim) numTrapezoids weights' =
+expectedUtilityTrapezoid (ModelParameters utility alphas' covars' dim _) numTrapezoids weights' =
   let weights = weights' ++ [1]  -- dummy weight for badThing
 
       -- Note: If numYears > 1, gradientAscent needs to use a smaller `scale` or
@@ -360,17 +361,22 @@ Main
 -- 3. bad thing
 standardParams :: ModelParameters
 standardParams =
-  let alphas = [0.08, 0.00, 0.05] :: [Double]
-      sigmas = diagl [0.18, 0.18, 0.03] :: Matrix Double
-      hedgeCorr = 0.9  -- correlation between hedge and bad thing
+  let alphas = [0.06, 0.00, 0.07] :: [Double]
+      sigmas' = [0.13, 0.22, 0.21]
+      sigmas = diagl sigmas' :: Matrix Double
+      hedgeCorr = 0.72 -- correlation between hedge and bad thing
       correlations = (3><3)
         [ 1, 0        , 0
         , 0, 1        , hedgeCorr
         , 0, hedgeCorr, 1
         ] :: Matrix Double
       covariances = toLists $ (sigmas <> correlations) <> sigmas
-      utility = crraUtility 1
-  in ModelParameters utility alphas covariances 3
+      rra = 1.1
+      utility = crraUtility rra
+      predicted = [ head alphas / (head sigmas' ** 2 * rra)
+                  , hedgeCorr * (sigmas'!!2) / (sigmas'!!1 * rra)
+                  ]
+  in ModelParameters utility alphas covariances 3 predicted
 
 
 -- | Parameter set with four variables:
@@ -394,14 +400,12 @@ legacyParams =
         ] :: Matrix Double
       covariances = toLists $ (sigmas <> correlations) <> sigmas
       utility = crraUtility 1.5
-  in ModelParameters utility alphas covariances 4
+  in ModelParameters utility alphas covariances 4 []
 
 
 main :: IO ()
 main = do
   -- print $ getGradient (expectedUtility legacyParams) [0.5, 0.5, 0.001]
-  weights <- gradientAscentIO (expectedUtility standardParams { utility = crraUtility 1 }) [1.5, 0.25] 15
-  weights <- gradientAscentIO (expectedUtility standardParams { utility = crraUtility 1.1 }) [1.5, 0.25] 15
-  weights <- gradientAscentIO (expectedUtility standardParams { utility = crraUtility 1.5 }) [1.5, 0.25] 15
-  weights <- gradientAscentIO (expectedUtility standardParams { utility = crraUtility 2 }) [1.5, 0.25] 15
+  printf "predicted allocation: %.3f, %.3f\n" (predicted standardParams!!0) (predicted standardParams!!1)
+  weights <- gradientAscentIO (expectedUtility standardParams) [1.5, 0.25] 15
   return ()
