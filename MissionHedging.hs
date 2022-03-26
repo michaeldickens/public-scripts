@@ -390,8 +390,8 @@ standardParams = standardParams' 1.5 0.5
 -- Note: Computing expected utility over a four-dimensional space is very slow.
 legacyParams :: ModelParameters
 legacyParams =
-  let alphas =       [0.05, 0.07, 0.00, 0.11] :: [Double]
-      sigmas = diagl [0.10, 0.40, 0.25, 0.25] :: Matrix Double
+  let alphas =       [0.17, 0.07,-0.02, 0.11] :: [Double]
+      sigmas = diagl [0.26, 0.40, 0.50, 0.47] :: Matrix Double
       hedgeCorr  = 0.5   -- correlation between hedge and mission target
       legacyCorr = 0.5   -- correlation between MVO asset and legacy asset
       correlations = (4><4)
@@ -414,6 +414,6 @@ makeTable rra corr = printf "| %f | %f | %.3f | %.3f | %.1f%% |\n" corr rra (sol
 main :: IO ()
 main = do
   putStrLn $ intercalate ", " $ map (printf "%.3f")
-    $ getGradient (expectedUtility legacyParams) [0.5, 0.5, 0.0001]
+    $ getGradient (expectedUtility legacyParams) [0.25, 0.5, 0.0001]
   -- weights <- gradientAscentIO (expectedUtility standardParams) (analyticSolution standardParams) 15
   return ()

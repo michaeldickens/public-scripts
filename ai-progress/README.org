@@ -1,0 +1,16 @@
+* AI Progress
+This folder contains a collection of scripts that I used to estimate the volatility of AI progress. I threw these scripts together quickly and they're not intended to be easy to read or use for anyone but me.
+
+** Source code
+Compute.hs: Compute/number of parameters of large ML models.
+
+eff.py: ML performance benchmarks.
+
+metaculus.py: Forecasts from Metaculus questions. Can download from the Metaculus API or use local files.
+** Data
+compute.csv: From Sevilla et al. (2022), [[https://arxiv.org/abs/2202.05924][Compute Trends Across Three Eras of Machine Learning.]] Downloaded from [[https://docs.google.com/spreadsheets/d/1AAIebjNsnJj_uKALHbXNfn3_YsT6sHXtCU0q7OIPuc4/edit#gid=0][Google sheet]].
+
+eff-ai-progress.json: From Electronic Frontier Foundation, [[https://www.eff.org/ai/metrics][AI Progress Measurement.]]
+Downloaded from [[https://raw.githubusercontent.com/AI-metrics/AI-metrics/master/export-api/v01/progress.json][raw JSON file]].
+
+metaculus-N.json: Downloaded data for Metaculus question N, for a few sample questions.
