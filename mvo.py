@@ -790,31 +790,23 @@ startups_vs_vmot_alpha = dict(
 # ))
 
 
-top_startup_data = dict(
+aqr_stock_bond_data = dict(
     asset_classes = [
-        "Market", "VMOT+ManFut", "Top Startup"
+        "Equities", "Bonds"
     ],
-    gmeans = [ 3,  6,   8],  # 50% gmean = 100% amean
-    stdevs = [16, 11, 100],
+    gmeans = [ 5.5,  0.8],
+    stdevs = [16,    8],
     correlations = [
-        [ 1            ],
-        [ 0.5,  1      ],
-        [ 0.5, -0.3,  1],
+        [ 1    ],
+        [ 0,  1],
     ]
 )
 
 optimizer = Optimizer(
-    top_startup_data,
+    aqr_stock_bond_data,
     leverage_cost=1,
     short_cost=0.25,
 )
 
-for entrepreneur_size in [0.01, 0.03, 0.1, 0.2, 0.5, 1]:
-    print("\n{}%:".format(int(100 * entrepreneur_size)))
-    print(optimizer.maximize_gmean(
-        max_leverage=2,
-        max_stdev=None,
-        shorts_allowed=True,
-        exogenous_portfolio_weight=1 - entrepreneur_size,
-        exogenous_weights=[1, 0, 0],
-    ))
+optimizer.mvo(target_leverage=2)
+optimizer.maximize_gmean(exogenous_weights=[0.5, 0.5])

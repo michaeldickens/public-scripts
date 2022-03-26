@@ -33,7 +33,7 @@ import Text.Printf
 {-| Data Definitions -}
 
 
--- | utility: Function from wealth and quantity of bad thing to utility
+-- | utility: Function from wealth and quantity of mission target to utility
 -- alphas: Arithmetic means of random variables
 -- covariances: Covariances between random variables
 -- dimension: Number of random variables
@@ -42,7 +42,7 @@ data ModelParameters = ModelParameters
   , alphas :: [Double]
   , covariances :: [[Double]]
   , dimension :: Int
-  , predicted :: [Double]
+  , analyticSolution :: [Double]
   }
 
 
@@ -158,11 +158,11 @@ integralRanges dimension numTrapezoids =
 -- trapezoids.
 --
 -- weights': a length-2 vector of weights for the first two variables (market
--- asset and hedge asset). The third variable (quantity of bad thing) always has
+-- asset and hedge asset). The third variable (quantity of mission target) always has
 -- a weight of 1.
 expectedUtilityTrapezoid :: ModelParameters -> Int -> [Double] -> Double
 expectedUtilityTrapezoid (ModelParameters utility alphas' covars' dim _) numTrapezoids weights' =
-  let weights = weights' ++ [1]  -- dummy weight for badThing
+  let weights = weights' ++ [1]  -- dummy weight for mission target
 
       -- Note: If numYears > 1, gradientAscent needs to use a smaller `scale` or
       -- else it will fail to converge.
@@ -190,8 +190,8 @@ expectedUtilityTrapezoid (ModelParameters utility alphas' covars' dim _) numTrap
             -- time, then holding y[1].
             wealth = product $ init ys
 
-            badThing = last ys
-            u = utility wealth badThing
+            target = last ys
+            u = utility wealth target
         in u * pdf * width
       ) $ integralRanges dim numTrapezoids
 
@@ -199,7 +199,7 @@ expectedUtilityTrapezoid (ModelParameters utility alphas' covars' dim _) numTrap
 -- | Numerically compute expected utility of a portfolio with the given weights.
 --
 -- Inputs should satisfy `length weights = dimension modelParams - 1` because
--- the last dimension covers the bad thing, which does not have a portfolio
+-- the last dimension covers the mission target, which does not have a portfolio
 -- weight.
 --
 -- Implemented using Richardson's extrapolation formula for the trapezoid rule.
@@ -300,19 +300,19 @@ Utility Functions
 
 
 -- | Utility function with constant relative risk aversion of wealth and linear
--- scaling with the bad thing.
+-- scaling with the mission target.
 --
 -- For rra > 1, this utility function has the following properties:
 --
 -- 1. dU/dw > 0                  (utility increases with wealth)
--- 2. dU/db < 0                  (utility decreases with bad thing)
--- 3. d^2 U / dw db > 0          (wealth becomes more useful as bad thing increases)
+-- 2. dU/db < 0                  (utility decreases with mission target)
+-- 3. d^2 U / dw db > 0          (wealth becomes more useful as mission target increases)
 -- 4. d^2 U / dw^2 < 0           (diminishing marginal utility of wealth)
 -- 5. constant relative risk aversion with respect to wealth
--- 6. lim(w -> inf) dU/db = 0    (infinite wealth fully cancels out bad thing)
-crraUtility :: Double -> Double -> Double -> Double
-crraUtility 1 wealth bad = bad * log wealth - bad
-crraUtility rra wealth bad = bad * (wealth**(1 - rra)) / (1 - rra)
+-- 6. lim(w -> inf) dU/db = 0    (infinite wealth fully cancels out mission target)
+crraUtility :: Double -> Double -> Double -> Double -> Double
+crraUtility 1 targetImpact wealth target = target**targetImpact * log wealth - target
+crraUtility rra targetImpact wealth target = target**targetImpact * (wealth**(1 - rra)) / (1 - rra)
 
 
 -- | Assumptions behind this utility function:
@@ -331,21 +331,21 @@ crraUtility rra wealth bad = bad * (wealth**(1 - rra)) / (1 - rra)
 --
 -- Gradient ascent over expected logistic utility fails to converge.
 --
--- growthScale: The relative scale of the growth rates of wealth and the bad
--- thing. Higher scale = the value of wealth grows faster (i.e., less wealth is
+-- growthScale: The relative scale of the growth rates of wealth and the mission
+-- target. Higher scale = the value of wealth grows faster (i.e., less wealth is
 -- required).
 logisticUtility :: Double -> Double -> Double -> Double
-logisticUtility growthScale wealth bad = 1 / (1 + exp (1 - growthScale * log wealth / log bad))
+logisticUtility growthScale wealth target = 1 / (1 + exp (1 - growthScale * log wealth / log target))
 
 
--- | Utility function where the interaction between `wealth` and `bad` behaves
+-- | Utility function where the interaction between `wealth` and `target` behaves
 -- like `crraUtility', but wealth also (independently) increases utility
--- logarithmically.
+-- logarithmic-ally.
 --
 -- This function satisfies all six criteria except for constant relative risk
 -- aversion.
 unboundedUtility :: Double -> Double -> Double -> Double
-unboundedUtility rra wealth bad = log wealth + crraUtility rra wealth bad
+unboundedUtility rra wealth target = log wealth + crraUtility rra 1 wealth target
 
 
 {-|
@@ -358,39 +358,41 @@ Main
 -- | Parameter set with three variables:
 -- 1. mean-variance optimal asset
 -- 2. hedge asset
--- 3. bad thing
-standardParams :: ModelParameters
-standardParams =
-  let alphas = [0.06, 0.00, 0.07] :: [Double]
-      sigmas' = [0.13, 0.22, 0.21]
-      sigmas = diagl sigmas' :: Matrix Double
-      hedgeCorr = 0.72 -- correlation between hedge and bad thing
+-- 3. mission target
+standardParams' :: Double -> Double -> ModelParameters
+standardParams' rra hedgeCorr =
+  let alphas =       [0.08, 0.00, 0.10] :: [Double]
+      sigmas = diagl [0.18, 0.18, 0.41] :: Matrix Double
       correlations = (3><3)
         [ 1, 0        , 0
         , 0, 1        , hedgeCorr
         , 0, hedgeCorr, 1
         ] :: Matrix Double
       covariances = toLists $ (sigmas <> correlations) <> sigmas
-      rra = 1.1
-      utility = crraUtility rra
-      predicted = [ head alphas / (head sigmas' ** 2 * rra)
-                  , hedgeCorr * (sigmas'!!2) / (sigmas'!!1 * rra)
-                  ]
-  in ModelParameters utility alphas covariances 3 predicted
+      targetImpact = 1
+      utility = crraUtility rra targetImpact
+      analyticSolution =
+        [ head alphas
+        , (targetImpact * covariances!!1!!2 + alphas!!1) / (covariances!!1!!1 * rra)
+        ]
+  in ModelParameters utility alphas covariances 3 analyticSolution
+
+
+standardParams = standardParams' 1.5 0.5
 
 
 -- | Parameter set with four variables:
 -- 1. mean-variance optimal asset
 -- 2. undesirable legacy asset
 -- 3. hedge asset
--- 4. bad thing
+-- 4. mission target
 --
 -- Note: Computing expected utility over a four-dimensional space is very slow.
 legacyParams :: ModelParameters
 legacyParams =
-  let alphas = [0.08, 0.08, 0.00, 0.10] :: [Double]
-      sigmas = diagl [0.18, 0.36, 0.18, 0.30] :: Matrix Double
-      hedgeCorr = 0.5    -- correlation between hedge and bad thing
+  let alphas =       [0.09, 0.07, 0.00, 0.11] :: [Double]
+      sigmas = diagl [0.19, 0.40, 0.50, 0.25] :: Matrix Double
+      hedgeCorr  = 0.5   -- correlation between hedge and mission target
       legacyCorr = 0.5   -- correlation between MVO asset and legacy asset
       correlations = (4><4)
         [ 1         , legacyCorr, 0        , 0
@@ -399,13 +401,19 @@ legacyParams =
         , 0         , 0         , hedgeCorr, 1
         ] :: Matrix Double
       covariances = toLists $ (sigmas <> correlations) <> sigmas
-      utility = crraUtility 1.5
+      rra = 1.5
+      targetImpact = 1
+      utility = crraUtility rra targetImpact
   in ModelParameters utility alphas covariances 4 []
+
+
+makeTable rra corr = printf "| %f | %f | %.3f | %.3f | %.1f%% |\n" corr rra (sol!!0) (sol!!1) (100 * sol!!1 / (sol!!0 + sol!!1))
+  where sol = analyticSolution $ standardParams' rra corr
 
 
 main :: IO ()
 main = do
-  -- print $ getGradient (expectedUtility legacyParams) [0.5, 0.5, 0.001]
-  printf "predicted allocation: %.3f, %.3f\n" (predicted standardParams!!0) (predicted standardParams!!1)
-  weights <- gradientAscentIO (expectedUtility standardParams) [1.5, 0.25] 15
+  putStrLn $ intercalate ", " $ map (printf "%.3f")
+    $ getGradient (expectedUtility legacyParams) [0.25, 0.5, 0.0001]
+  -- weights <- gradientAscentIO (expectedUtility standardParams) (analyticSolution standardParams) 15
   return ()
