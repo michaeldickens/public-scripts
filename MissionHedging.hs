@@ -128,7 +128,7 @@ uniLognormPDF' y mu cov = (1 / sqrt (2*pi * cov)) * (1 / y) * exp ((-0.5) * (log
 -- probability space (less than one millionth of the space is excluded). For
 -- independent three-variable, 5 stdevs cover 99.9998%, and the coverage goes up
 -- as correlation increases. (That's better coverage than Amazon S3)
-integralMaxStdev = 6 :: Double
+integralMaxStdev = 5 :: Double
 
 
 -- | A list of ranges to be used for numeric integration. A range is defined by
@@ -163,25 +163,28 @@ integralRanges dimension numTrapezoids =
 expectedUtilityTrapezoid :: ModelParameters -> Int -> [Double] -> Double
 expectedUtilityTrapezoid (ModelParameters utility alphas' covars' dim _) numTrapezoids weights' =
   let weights = weights' ++ [1]  -- dummy weight for mission target
-
-      -- Note: If numYears > 1, gradientAscent needs to use a smaller `scale` or
-      -- else it will fail to converge.
-      numYears = 1
-
-      -- TODO: Not 100% sure I am scaling correctly with numYears
-      alphas = map (* numYears) $ zipWith (*) weights alphas'
-      covars = [[numYears * weights!!i * weights!!j * covars'!!i!!j | i <- [0..dim-1]] | j <- [0..dim-1]]
-
-      stdevs = [sqrt $ covars!!i!!i | i <- [0..dim-1]]
-      mus = zipWith (\alpha sd -> alpha - 0.5 * sd**2) alphas stdevs
-
-      -- | Transform from standard normal space to nonstandard lognormal space
-      transform point = zipWith3 (\mu sd x -> exp $ mu + sd * x) mus stdevs point
   in sum $ map (
-      \rectRanges ->
-        let yLower = transform $ map fst rectRanges
-            yUpper = transform $ map snd rectRanges
-            ys = transform $ map (\(e, s) -> (e + s) / 2) rectRanges
+      \trapRanges ->
+        -- Note: This uses the magic of lazy evaluation to reference `ys` before it's defined, which is able to resolve b/c `last ys` doesn't depend on numYears
+        let numYears = 1 / last ys
+
+            -- TODO: this is weird b/c mu and sd actually change based on where
+            -- in the trapezoid you are
+            alphas = zipWith (*) (take (length weights') (repeat numYears) ++ [1]) $ zipWith (*) weights alphas'
+            covars =
+              [[  (if i < dim - 1 then sqrt numYears else 1)
+                * (if j < dim - 1 then sqrt numYears else 1)
+                * weights!!i * weights!!j * covars'!!i!!j
+              | i <- [0..dim-1]] | j <- [0..dim-1]]
+
+            stdevs = [sqrt $ covars!!i!!i | i <- [0..dim-1]]
+            mus = zipWith (\alpha sd -> alpha - 0.5 * sd**2) alphas stdevs
+
+            transform point = zipWith4 (\mu sd x i -> exp $ mu + sd * x) mus stdevs point [0..]
+            yLower = transform $ map fst trapRanges
+            yUpper = transform $ map snd trapRanges
+            rangeMids = map (\(e, s) -> (e + s) / 2) trapRanges
+            ys = transform rangeMids
             width = abs $ product $ zipWith (-) yUpper yLower
             pdf = lognormPDF ys mus covars
 
@@ -209,9 +212,9 @@ expectedUtilityTrapezoid (ModelParameters utility alphas' covars' dim _) numTrap
 -- See https://mathforcollege.com/nm/mws/gen/07int/mws_gen_int_txt_romberg.pdf
 expectedUtility :: ModelParameters -> [Double] -> Double
 expectedUtility modelParams weights =
-  let numTrapezoids = 6
-      bigTrap = expectedUtilityTrapezoid modelParams numTrapezoids weights
+  let numTrapezoids = 5  -- TODO: change back to 6
       smallTrap = expectedUtilityTrapezoid modelParams (2 * numTrapezoids) weights
+      bigTrap = expectedUtilityTrapezoid modelParams numTrapezoids weights
   in smallTrap + (smallTrap - bigTrap) / 3
 
 
@@ -390,10 +393,10 @@ standardParams = standardParams' 1.5 0.5
 -- Note: Computing expected utility over a four-dimensional space is very slow.
 legacyParams :: ModelParameters
 legacyParams =
-  let alphas =       [0.09, 0.07,-0.02, 3.09] :: [Double]
-      sigmas = diagl [0.19, 0.40, 0.40, 0.99] :: Matrix Double
-      hedgeCorr  = 0.5   -- correlation between hedge and mission target
-      legacyCorr = 0.5   -- correlation between MVO asset and legacy asset
+  let alphas =       [0.17, 0.07,-0.00,-2.60] :: [Double]
+      sigmas = diagl [0.26, 0.30, 0.20, 0.99] :: Matrix Double
+      hedgeCorr  =  0.5   -- correlation between hedge and mission target
+      legacyCorr =  0.5   -- correlation between MVO asset and legacy asset
       correlations = (4><4)
         [ 1         , legacyCorr, 0        , 0
         , legacyCorr, 1         , 0        , 0
@@ -403,8 +406,10 @@ legacyParams =
       covariances = toLists $ (sigmas <> correlations) <> sigmas
       rra = 2
       targetImpact = 1
-      utility = crraUtility rra targetImpact
-      -- utility wealth target = (wealth**target - 1)**(1 - rra) / (1 - rra)
+      -- utility = crraUtility rra targetImpact
+      -- utility wealth target = (wealth**target)**(1 - rra) / (1 - rra)
+      utility wealth target = (wealth**(1 - rra) - 1) / (1 - rra)
+      -- utility wealth target = (target * log wealth)**0.5 / 0.5
   in ModelParameters utility alphas covariances 4 []
 
 
@@ -414,6 +419,7 @@ makeTable rra corr = printf "| %f | %f | %.3f | %.3f | %.1f%% |\n" corr rra (sol
 
 main :: IO ()
 main = do
+  printf "%.3f\n" $ expectedUtility legacyParams [0.25, 0.5, 0.0001]
   putStrLn $ intercalate ", " $ map (printf "%.3f")
     $ getGradient (expectedUtility legacyParams) [0.25, 0.5, 0.0001]
   -- weights <- gradientAscentIO (expectedUtility standardParams) (analyticSolution standardParams) 15
