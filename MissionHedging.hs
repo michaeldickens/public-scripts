@@ -390,8 +390,8 @@ standardParams = standardParams' 1.5 0.5
 -- Note: Computing expected utility over a four-dimensional space is very slow.
 legacyParams :: ModelParameters
 legacyParams =
-  let alphas =       [0.17, 0.07,-0.02, 0.11] :: [Double]
-      sigmas = diagl [0.26, 0.40, 0.50, 0.47] :: Matrix Double
+  let alphas =       [0.09, 0.07,-0.02, 3.09] :: [Double]
+      sigmas = diagl [0.19, 0.40, 0.40, 0.99] :: Matrix Double
       hedgeCorr  = 0.5   -- correlation between hedge and mission target
       legacyCorr = 0.5   -- correlation between MVO asset and legacy asset
       correlations = (4><4)
@@ -401,9 +401,10 @@ legacyParams =
         , 0         , 0         , hedgeCorr, 1
         ] :: Matrix Double
       covariances = toLists $ (sigmas <> correlations) <> sigmas
-      rra = 1.5
+      rra = 2
       targetImpact = 1
       utility = crraUtility rra targetImpact
+      -- utility wealth target = (wealth**target - 1)**(1 - rra) / (1 - rra)
   in ModelParameters utility alphas covariances 4 []
 
 

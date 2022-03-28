@@ -14,8 +14,12 @@ import numpy as np
 import requests
 
 def fetch_question_json(question_num):
-    response = requests.get('https://www.metaculus.com/api2/questions/{}/'.format(question_num))
-    return json.loads(response.content)
+    if question_num == 3479:
+        with open('data/metaculus-3479.json') as fp:
+            return json.loads(fp.read())
+    else:
+        response = requests.get('https://WWW.metaculus.com/api2/questions/{}/'.format(question_num))
+        return json.loads(response.content)
 
 
 def denormalize(data, point):
@@ -27,16 +31,17 @@ def denormalize(data, point):
         # linear
         return (point + 1) / 200
     else:
-        years = 180 * (log_base**(point / 200) - 1) / (log_base - 1)
+        years = 1 + 180 * (log_base**(point / 200) - 1) / (log_base - 1)
 
         # TODO: this kind of assumes that AGI happens when some underlying parameter
         # doubles. might be a better way to do it
-        # growth_rate = 2**(1 / (1 + years)) - 1
+        # growth_rate = 2**(1 / years) - 1
 
         # assumes linear progress in some sense. eg could be 'progress' is a
         # logarithmic function, and the thing being measured moves
-        # exponentially
-        growth_rate = 1 / (1 + years)
+        # exponentially.
+        # growth_rate = 1 / years
+        growth_rate = np.log(1 + 1 / years)
         return growth_rate
 
 
@@ -64,6 +69,6 @@ def vol_over_time(data):
         mean, stdev, stdev / np.sqrt(time_gap_years)))
 
 
-data = fetch_question_json(5121)
+data = fetch_question_json(3479)
 prediction_vol(data)
 vol_over_time(data)

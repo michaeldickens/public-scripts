@@ -79,7 +79,7 @@ for k, metric in metrics.items():
             prev = metric[i][1]
     metric = [x for x in metric if x is not None]
 
-    # If multiple measures have the same year, keep only the first one
+    # If multiple measures occur in the same year, keep only the first one
     prev = metric[0][0]
     for i in range(1, len(metric)):
         if metric[i][0] == prev:
@@ -106,20 +106,20 @@ max_year = max(max(metric.keys()) for k, metric in score_growth.items())
 avg_growth_per_year = {}
 sample_size_per_year = {}
 for year in range(min_year, max_year + 1):
-    growth_for_year = [
+    growth_in_year = [
         growth[year]
         for growth in score_growth.values()
         if year in growth
     ]
-    sample_size_per_year[year] = len(growth_for_year)
-    if len(growth_for_year) == 0:
+    sample_size_per_year[year] = len(growth_in_year)
+    if len(growth_in_year) == 0:
         # If a year has no entries, that means no model on the list had an improvement that year
         avg_growth_per_year[year] = 0
     else:
-        avg_growth_per_year[year] = np.mean(growth_for_year)
+        avg_growth_per_year[year] = np.mean(growth_in_year)
 
 
-def correlate_to_semiconductors()::
+def correlate_to_semiconductors():
     # Returns for MSCI Semiconductors and Semiconductor Equipment Index
     # Transcribed from https://www.msci.com/documents/10199/43fbeb9e-05ce-4b94-8d98-4ab50d9b5409
     semiconductor_ret = {y: np.log(1 + x/100) for y, x in {

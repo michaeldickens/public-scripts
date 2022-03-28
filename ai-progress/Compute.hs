@@ -29,12 +29,11 @@ stdDev xs =
 
 main :: IO ()
 main = do
-  let metric = NumParams
-  let transform = (** (0.35))
-  -- let transform = (** (-0.050))      -- for compute
-  -- let transform = (** (-0.076))   -- for num params
+  let metric = Compute
+  -- let transform = (** (0.35))        -- for num params (aggressive)
+  let transform = (** (-0.050))      -- for compute
+  -- let transform = (** (-0.076))      -- for num params
   -- let transform = id
-  -- let transform = log
 
   file <- readFile "data/compute.csv"
   let rows = map (splitOn ",") $ tail $ lines file
@@ -47,6 +46,8 @@ main = do
                                    in yr >= 2012 && yr <= 2021) rowsByYear
 
   let compute = map (map transform) compute'
+  print $ map stdDev compute
+  print $ mean $ map stdDev compute
   let avgCompute = map mean compute
   let growth = zipWith (\x y -> log $ y/x) avgCompute (tail avgCompute)
   -- let growth = zipWith (-) avgCompute (tail avgCompute)
