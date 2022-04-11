@@ -14,6 +14,10 @@ import numpy as np
 import requests
 
 def fetch_question_json(question_num):
+    '''
+    For locally-saved questions, load the question from a file. Otherwise, send
+    an HTTP request to the Metaculus API.
+    '''
     if question_num == 3479:
         with open('data/metaculus-3479.json') as fp:
             return json.loads(fp.read())
@@ -32,10 +36,6 @@ def denormalize(data, point):
         return (point + 1) / 200
     else:
         years = 1 + 180 * (log_base**(point / 200) - 1) / (log_base - 1)
-
-        # TODO: this kind of assumes that AGI happens when some underlying parameter
-        # doubles. might be a better way to do it
-        # growth_rate = 2**(1 / years) - 1
 
         # assumes linear progress in some sense. eg could be 'progress' is a
         # logarithmic function, and the thing being measured moves
