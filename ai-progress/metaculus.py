@@ -1,6 +1,7 @@
+
 """
 
-meticulous.py
+metaculus.py
 ------------
 
 Author: Michael Dickens <michael@mdickens.me>
@@ -28,7 +29,8 @@ def fetch_question_json(question_num):
 
 def denormalize(data, point):
     '''
-    See https://github.com/oughtinc/ergo/blob/master/ergo/scale.py
+    Denormalization algorithm taken from
+    https://github.com/oughtinc/ergo/blob/master/ergo/scale.py
     '''
     log_base = data['possibilities']['scale']['deriv_ratio']
     if log_base == 1:
@@ -46,6 +48,9 @@ def denormalize(data, point):
 
 
 def prediction_vol(data):
+    '''
+    Calculate the volatility across user predictions.
+    '''
     predictions_normalized = list(enumerate(data['community_prediction']['full']['y']))
     total = sum(h for (x, h) in predictions_normalized)
     predictions = [(denormalize(data, x), h / total) for (x, h) in predictions_normalized]
@@ -55,6 +60,9 @@ def prediction_vol(data):
 
 
 def vol_over_time(data):
+    '''
+    Calculate the volatility of the community prediction over time.
+    '''
     # drop the first 50 b/c not enough predictions yet
     limited_data = data['prediction_timeseries'][50:]
     time_series_normalized = [entry['distribution']['x0'] for entry in limited_data]  # mean

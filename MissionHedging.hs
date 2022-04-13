@@ -201,7 +201,7 @@ trapAreaLinear (ModelParameters utility alphas' covars' dim _) trapRanges weight
     -- it's defined, which is able to resolve b/c `last ys` doesn't depend
     -- on numYears
     let weights = weights' ++ [1]
-        numYears = 2
+        numYears = 1
 
         alphas = zipWith (*) weights alphas'
         covars =
@@ -220,8 +220,8 @@ trapAreaLinear (ModelParameters utility alphas' covars' dim _) trapRanges weight
         pdf = lognormPDF ys mus covars
 
         ysMultiYear =
-          zipWith4 (\mu sd x wt -> exp $ wt * mu + sqrt wt * sd * x)
-          mus stdevs rangeMids (repeat numYears)
+          zipWith3 (\mu sd x -> exp $ numYears * mu + sqrt numYears * sd * x)
+          mus stdevs rangeMids
 
         -- Recall that ys are already weighted by portfolio allocation. You
         -- can think of this as holding y[0] for a proportionate length of
@@ -242,11 +242,16 @@ trapAreaLinear (ModelParameters utility alphas' covars' dim _) trapRanges weight
 -- weights': a length-2 vector of weights for the first two variables (market
 -- asset and hedge asset). The third variable (quantity of mission target) always has
 -- a weight of 1.
+--
+-- TODO: This can't calculate the PDF if any variables have a weight of 0
+-- because the covariance becomes non-invertible, and the determinant is 0
+-- (which means we'd divide by 0). I would think we could fix this by simply
+-- removing the zero variable, but this gives wrong-looking results.
 expectedUtilityTrapezoid :: ModelParameters -> Int -> [Double] -> Double
 expectedUtilityTrapezoid params@(ModelParameters utility alphas' covars' dim _) numTrapezoids weights' =
-  let weights = weights' ++ [1]  -- dummy weight for mission target
-  in sum $ map (
-    \trapRanges -> trapAreaFancy params trapRanges weights'
+  sum $ map (
+    \trapRanges ->
+      trapAreaLinear params trapRanges weights'
       ) $ integralRanges dim numTrapezoids
 
 
@@ -320,7 +325,7 @@ gradientAscentIO f initialGuess scale = go initialGuess numSteps
                return x
              else do
                printInfo x fx
-               printf " (step %d)\n" (numSteps - stepsLeft + 1)
+               printf " (step %d)\r" (numSteps - stepsLeft + 1)
                go (zipWith (\xi g -> xi + scale * g) x gradient) (stepsLeft - 1)
 
         printInfo x fx = printf "%s\rEU(%.3f, %.3f) = %.4f" (take 40 $ repeat ' ') (x!!0) (x!!1) fx
@@ -414,8 +419,8 @@ Main
 -- 3. mission target
 standardParams' :: Double -> Double -> ModelParameters
 standardParams' rra hedgeCorr =
-  let alphas =       [0.08, 0.00, 3.58] :: [Double]
-      sigmas = diagl [0.18, 0.18, 0.99] :: Matrix Double
+  let alphas =       [0.10, 0.00, 0.10] :: [Double]
+      sigmas = diagl [0.13, 0.25, 0.20] :: Matrix Double
       correlations = (3><3)
         [ 1, 0        , 0
         , 0, 1        , hedgeCorr
@@ -423,8 +428,8 @@ standardParams' rra hedgeCorr =
         ] :: Matrix Double
       covariances = toLists $ (sigmas <> correlations) <> sigmas
       targetImpact = 1
-      -- utility = crraUtility rra targetImpact
-      utility wealth target = (1 - wealth**(1 - rra))
+      -- utility wealth target = (1 - wealth**(1 - rra))
+      utility = crraUtility rra targetImpact
       analyticSolution =
         [ head alphas / (covariances!!0!!0 * rra)
         , (targetImpact * covariances!!1!!2 + alphas!!1) / (covariances!!1!!1 * rra)
@@ -432,7 +437,7 @@ standardParams' rra hedgeCorr =
   in ModelParameters utility alphas covariances 3 analyticSolution
 
 
-standardParams = standardParams' 1.5 (-0.3)
+standardParams = standardParams' 1.5 0.5
 
 
 -- | Parameter set with four variables:
@@ -441,12 +446,13 @@ standardParams = standardParams' 1.5 (-0.3)
 -- 3. hedge asset
 -- 4. mission target
 --
--- Note: Computing expected utility over a four-dimensional space is very slow.
+-- Note: Computing expected utility over a four-dimensional space is very slow
+-- (~2 sec on my machine with -O2).
 legacyParams :: ModelParameters
 legacyParams =
-  let alphas =       [0.09, 0.07, 0.00, 2.58] :: [Double]
-      sigmas = diagl [0.19, 0.30, 0.40, 0.91] :: Matrix Double
-      hedgeCorr  = -0.6   -- correlation between hedge and mission target
+  let alphas =       [0.17, 0.07, 0.00, 0.10] :: [Double]
+      sigmas = diagl [0.26, 0.30, 0.40, 0.20] :: Matrix Double
+      hedgeCorr  =  0.6   -- correlation between hedge and mission target
       legacyCorr =  0.5   -- correlation between MVO asset and legacy asset
       correlations = (4><4)
         [ 1         , legacyCorr, 0        , 0
@@ -459,8 +465,8 @@ legacyParams =
       targetImpact = 1
       scale = 2    -- larger `scale` = takes longer to get high utility. gradient
                    -- is proportional to `scale`
-      utility wealth target = (1 - scale * wealth**(1 - rra))
-      -- utility = crraUtility rra targetImpact
+      -- utility wealth target = (1 - scale * wealth**(1 - rra))
+      utility = crraUtility rra targetImpact
   in ModelParameters utility alphas covariances 4 []
 
 
@@ -472,6 +478,5 @@ main :: IO ()
 main = do
   putStrLn $ intercalate ", " $ map (printf "%.3f")
     $ getGradient (expectedUtility legacyParams) [0.25, 0.5, 0.0001]
-  -- weights <- gradientAscentIO (expectedUtility standardParams) [1.5, 0.1] 1
 
   return ()

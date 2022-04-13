@@ -45,6 +45,8 @@ for k, metric in metrics.items():
     for i in range(1, len(metric)):
         assert metric[i][0] >= metric[i-1][0], "{} < {}".format(metric[i][0], metric[i-1][0])
 
+    # Measures are not all on the same scale. Use some heuristics to guess
+    # which scale is being used
     net_ascending = 0
     value_type = 'proportion'
     for i in range(1, len(metric)):
