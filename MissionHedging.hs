@@ -462,7 +462,7 @@ standardParams = standardParams' 1.5 0.5
 -- (~2 sec on my machine with -O2).
 legacyParams :: ModelParameters
 legacyParams =
-  let alphas =       [0.09, 0.07, 0.06, 0.10] :: [Double]
+  let alphas =       [0.09, 0.07, 0.09, 0.10] :: [Double]
       sigmas = diagl [0.19, 0.30, 0.60, 0.20] :: Matrix Double
       hedgeCorr  =  0.6   -- correlation between hedge and mission target
       legacyCorr =  0.5   -- correlation between MVO asset and legacy asset
