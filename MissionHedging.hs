@@ -27,6 +27,7 @@ import Data.List as List
 import qualified Data.Vector.Storable as Vec
 import Debug.Trace
 import Numeric.LinearAlgebra
+import Numeric.LinearAlgebra.Data
 import Prelude hiding ((<>))
 import Text.Printf
 
@@ -63,6 +64,17 @@ updateAt :: Int -> (a -> a) -> [a] -> [a]
 updateAt i f xs = go i xs
   where go 0 (x:xs) = (f x) : xs
         go j (x:xs) = x : (go (j-1) xs)
+
+
+triangular :: [[Double]] -> Matrix Double
+triangular rows =
+  let width = length (last rows)
+      height = length rows
+      filled = map (\row -> row ++ (take (width - length row) $ repeat 0)) rows
+      lowerTri = fromLists filled
+      upperTri = tr lowerTri
+      diagonal = diag $ takeDiag lowerTri
+  in lowerTri + upperTri - diagonal
 
 
 {-|
@@ -450,16 +462,22 @@ standardParams = standardParams' 1.5 0.5
 -- (~2 sec on my machine with -O2).
 legacyParams :: ModelParameters
 legacyParams =
-  let alphas =       [0.17, 0.07, 0.00, 0.10] :: [Double]
-      sigmas = diagl [0.26, 0.30, 0.40, 0.20] :: Matrix Double
+  let alphas =       [0.09, 0.07, 0.06, 0.10] :: [Double]
+      sigmas = diagl [0.19, 0.30, 0.60, 0.20] :: Matrix Double
       hedgeCorr  =  0.6   -- correlation between hedge and mission target
       legacyCorr =  0.5   -- correlation between MVO asset and legacy asset
-      correlations = (4><4)
-        [ 1         , legacyCorr, 0        , 0
-        , legacyCorr, 1         , 0        , 0
-        , 0         , 0         , 1        , hedgeCorr
-        , 0         , 0         , hedgeCorr, 1
-        ] :: Matrix Double
+      -- correlations = (4><4)
+      --   [ 1         , legacyCorr, 0        , 0
+      --   , legacyCorr, 1         , 0        , 0
+      --   , 0         , 0         , 1        , hedgeCorr
+      --   , 0         , 0         , hedgeCorr, 1
+      --   ] :: Matrix Double
+      correlations = triangular
+        [ [1                                           ]
+        , [legacyCorr, 1                               ]
+        , [0.6       , 0         , 1                   ]
+        , [0.3       , 0         , hedgeCorr, 1        ]
+        ]
       covariances = toLists $ (sigmas <> correlations) <> sigmas
       rra = 2
       targetImpact = 1

@@ -100,7 +100,8 @@ for k, metric in metrics.items():
         score_growth[k] = metric_growth
 
 
-min_year = min(min(metric.keys()) for k, metric in score_growth.items())
+# min_year = min(min(metric.keys()) for k, metric in score_growth.items())
+min_year = 2012
 max_year = max(max(metric.keys()) for k, metric in score_growth.items())
 
 
@@ -168,6 +169,6 @@ def correlate_to_semiconductors():
     print(np.corrcoef([x[0] for x in pairs], [x[1] for x in pairs]))
 
 
-# print(avg_growth_per_year)
-# print(np.mean([x for x in avg_growth_per_year.values() if not math.isnan(x)]))
-# print(np.std([x for x in avg_growth_per_year.values() if not math.isnan(x)]))
+print(avg_growth_per_year)
+print(np.mean([x for x in avg_growth_per_year.values() if not math.isnan(x)]))
+print(np.std([x for x in avg_growth_per_year.values() if not math.isnan(x)]))

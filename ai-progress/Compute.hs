@@ -29,10 +29,10 @@ stdDev xs =
 
 main :: IO ()
 main = do
-  let metric = Compute
+  let metric = NumParams
   -- let transform = (** (0.35))        -- for num params (aggressive)
-  let transform = (** (-0.050))      -- for compute
-  -- let transform = (** (-0.076))      -- for num params
+  -- let transform = (** (-0.050))      -- for compute
+  let transform = (** (-0.076))      -- for num params
   -- let transform = id
 
   file <- readFile "data/compute.csv"
@@ -50,7 +50,7 @@ main = do
   print $ mean $ map stdDev compute
   let avgCompute = map mean compute
   let growth = zipWith (\x y -> log $ y/x) avgCompute (tail avgCompute)
-  -- let growth = zipWith (-) avgCompute (tail avgCompute)
+  -- let growth = zipWith (\x y -> y/x - 1) avgCompute (tail avgCompute)
   putStrLn $ intercalate ", " $ map (printf "%.2f" . (*100)) growth
   printf "mean %.1f%%, stdev %.1f%%\n" (100 * mean growth) (100 * stdDev growth)
 

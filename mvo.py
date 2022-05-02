@@ -1,3 +1,4 @@
+
 """
 
 mvo.py
@@ -8,14 +9,16 @@ Created: 2020-10-05
 
 """
 
+import csv
 from pprint import pprint
 
 from matplotlib import pyplot, ticker
 import numpy as np
-from scipy import optimize
+from scipy import optimize, stats
 
 
 covariances = None
+
 
 # Returns and covariances downloaded from Research Affiliates' Asset Allocation
 # Interactive on 2020-10-05.
@@ -204,17 +207,15 @@ my_favorite_data = dict(
         # VMOT: VMOT
         # ManFut: managed futures, like AQR Time Series Momentum data set
         # GVAL: cheap stocks in cheap countries, like GVAL
-        # crypto: market-neutral cryptocurrency trading
-        "Market", "VMOT", "ManFut", "GVAL", "crypto"
+        "Market", "VMOT", "ManFut", "GVAL"
     ],
-    gmeans = [ 3,  6,  3,  9, 10],
-    stdevs = [16, 13, 15, 22,  8],
+    gmeans = [ 3,  6,  3,  9],
+    stdevs = [16, 13, 15, 22],
     correlations = [
-        [ 1                      ],
-        [ 0.5,  1                ],
-        [ 0  ,  0.2, 1           ],
-        [ 0.8,  0.6, 0  , 1      ],
-        [-0.2,  0.1, 0.5, -0.2, 1],
+        [ 1                ],
+        [ 0.5,  1          ],
+        [ 0  ,  0.2, 1     ],
+        [ 0.8,  0.6, 0  , 1],
     ]
 )
 
@@ -289,8 +290,6 @@ class Optimizer:
         self.stdevs = np.array([x/100 for x in stdevs])
         self.covariances = np.array([[x/100 for x in row] for row in covariances])
 
-        print("\n".join(["\t".join([str(x) for x in row]) for row in self.covariances]))
-
         self.NO_CONSTRAINT = optimize.LinearConstraint(
             # This is a "constraint" that's not actually constraining. Use this if you
             # want to disable a particular constraint.
@@ -305,6 +304,15 @@ class Optimizer:
 
     def neg_return(self, weights):
         return -np.dot(weights, self.gmeans + self.stdevs**2 / 2)
+
+    def neg_return_historical(self, historical_data):
+        def inner(weights):
+            return -np.mean([
+                sum(w * r for (w, r) in zip(weights, row))
+                for row in historical_data
+            ])
+
+        return inner
 
     def neg_return_with_uncertainty(self, weights):
         param_uncertainty = 0.2
@@ -376,13 +384,15 @@ class Optimizer:
         self.stdevs = saved_stdevs
         return accum_gmean / num_samples
 
-    def mvo(self, max_stdev=None, target_leverage=None, shorts_allowed=False):
+    def mvo(self, max_stdev=None, target_leverage=None, shorts_allowed=False, historical_data=None):
         '''
         Find either the asset allocation with the highest return for a given
         standard deviation, or the allocation with the highest Sharpe ratio for
         a given amount of leverage.
 
         max_stdev should be provided as a percentage.
+
+        TODO: This should take arithmetic means, not geometric means.
         '''
         assert(max_stdev is not None or target_leverage is not None)
 
@@ -396,7 +406,21 @@ class Optimizer:
                 ub=[np.inf for _ in self.asset_classes]
             )
 
-        if max_stdev is not None:
+        if max_stdev is not None and historical_data is not None:
+            max_stdev /= 100  # convert from percentage to proportion
+            optimand = self.neg_return_historical(historical_data)
+
+            leverage_constraint = optimize.LinearConstraint(
+                [1 for _ in self.asset_classes],
+                lb=1, ub=np.inf
+            )
+
+            variance_constraint = optimize.NonlinearConstraint(
+                lambda weights: 12 * np.var(np.dot(historical_data, weights)),
+                lb=0, ub=max_stdev**2
+            )
+
+        elif max_stdev is not None:
             max_stdev /= 100  # convert from percentage to proportion
             # You're not allowed to invest money in nothing for a guaranteed 0% return.
             # That would be ok if returns were nominal, but this program uses real
@@ -409,6 +433,7 @@ class Optimizer:
                 lambda weights: np.dot(np.dot(self.covariances, weights), weights),
                 lb=0, ub=max_stdev**2
             )
+
             optimand = self.neg_return
         else:
             leverage_constraint = optimize.LinearConstraint(
@@ -422,13 +447,26 @@ class Optimizer:
             x0=[0.01 for _ in self.asset_classes],
             constraints=[shorts_constraint, leverage_constraint, variance_constraint]
         )
-        print("Return: {:.2f}%".format(100 * self.geometric_mean(opt.x)))
-        print("Stdev: {:.2f}%".format(
-            100 * np.sqrt(np.dot(np.dot(self.covariances, opt.x), opt.x))
-        ))
-        print()
-        print("\n".join(["{}\t{:.3f}".format(name, weight)
-                        for name, weight in zip(self.asset_classes, opt.x)]))
+
+        if historical_data:
+            monthly_rets = [
+                sum(w * r for (w, r) in zip(opt.x, row))
+                for row in historical_data
+            ]
+
+            print("Arithmetic Return: {:.2f}%".format(100 * 12 * np.mean(monthly_rets)))
+            print("CAGR: {:.2f}%".format(100 * 12 * np.mean([np.log(1 + x) for x in monthly_rets])))
+            print("Stdev: {:.2f}%".format(100 * np.sqrt(12) * np.std(monthly_rets)))
+            print("Weights:")
+            print("\n".join("\t{:.3f}".format(weight) for weight in opt.x))
+        else:
+            print("CAGR: {:.2f}%".format(100 * self.geometric_mean(opt.x)))
+            print("Stdev: {:.2f}%".format(
+                100 * np.sqrt(np.dot(np.dot(self.covariances, opt.x), opt.x))
+            ))
+            print()
+            print("\n".join(["{}\t{:.3f}".format(name, weight)
+                            for name, weight in zip(self.asset_classes, opt.x)]))
 
 
     def maximize_gmean_below_uncertainty(
@@ -733,54 +771,6 @@ def find_efficient_frontier():
     ax.yaxis.set_major_formatter(ticker.PercentFormatter())
     pyplot.savefig("/tmp/return-correlation-tradeoff.png")
 
-
-startups_vs_vmot = dict(
-    asset_classes = [
-        "Market", "VMOT+ManFut", "Startups"
-    ],
-    gmeans = [ 3,  6, 18],
-    stdevs = [16, 11, 35],
-    correlations = [
-        [ 1            ],
-        [ 0.1,  1      ],
-        [ 0.7, -0.3,  1],
-    ]
-)
-
-startups_vs_vmot_historical = dict(
-    asset_classes = [
-        "Market", "VMOT+ManFut", "Startups"
-    ],
-    gmeans = [ 9, 15, 27],
-    stdevs = [19, 12, 35],
-    correlations = [
-        [ 1            ],
-        [ 0.1,  1      ],
-        [ 0.7, -0.3,  1],
-    ]
-)
-
-
-startups_vs_vmot_alpha = dict(
-    asset_classes = [
-        "Market", "VMOT+ManFut", "Startup Alpha"
-    ],
-    gmeans = [ 3,  6,  8],
-    stdevs = [16, 11, 16],
-    correlations = [
-        [ 1            ],
-        [ 0.5,  1      ],
-        [ 0.0, -0.3,  1],
-    ]
-)
-
-
-# optimizer = Optimizer(
-#     my_favorite_data,
-#     leverage_cost=1,
-#     short_cost=0.25,
-# )
-
 # print(optimizer.maximize_gmean(
 #     max_leverage=None,
 #     max_stdev=30,
@@ -790,23 +780,15 @@ startups_vs_vmot_alpha = dict(
 # ))
 
 
-aqr_stock_bond_data = dict(
-    asset_classes = [
-        "Equities", "Bonds"
-    ],
-    gmeans = [ 5.5,  0.8],
-    stdevs = [16,    8],
-    correlations = [
-        [ 1    ],
-        [ 0,  1],
-    ]
-)
-
 optimizer = Optimizer(
-    aqr_stock_bond_data,
-    leverage_cost=1,
+    my_favorite_data,
+    leverage_cost=2,
     short_cost=0.25,
 )
 
-optimizer.mvo(target_leverage=2)
-optimizer.maximize_gmean(exogenous_weights=[0.5, 0.5])
+with open("data/historical-mvo.csv", "r") as fp:
+    reader = csv.reader(fp)
+    historical_data = [[float(x)/100 for x in row] for row in reader]
+
+optimizer.mvo(max_stdev=30, historical_data=historical_data)
+# optimizer.mvo(max_stdev=30)
