@@ -66,6 +66,15 @@ updateAt i f xs = go i xs
         go j (x:xs) = x : (go (j-1) xs)
 
 
+-- | Given a lower-triangular matrix represented as a list of lists, return a
+-- symmetric Matrix where the given lower-triangular matrix is mirrored on the
+-- lower and upper halves.
+--
+-- Example input:  [[1], [2, 3], [4, 5, 6]]
+-- Example output: (3><3) [ 1, 2, 4
+--                        , 2, 3, 5
+--                        , 4, 5, 6
+--                        ]
 triangular :: [[Double]] -> Matrix Double
 triangular rows =
   let width = length (last rows)
@@ -417,6 +426,8 @@ logisticUtility growthScale wealth target = 1 / (1 + exp (1 - growthScale * log 
 unboundedUtility :: Double -> Double -> Double -> Double
 unboundedUtility rra wealth target = log wealth + crraUtility rra 1 wealth target
 
+makeTable rra corr = printf "| %f | %f | %.3f | %.3f | %.1f%% |\n" corr rra (sol!!0) (sol!!1) (100 * sol!!1 / (sol!!0 + sol!!1))
+  where sol = analyticSolution $ standardParams' rra corr
 
 {-|
 
@@ -452,31 +463,16 @@ standardParams' rra hedgeCorr =
 standardParams = standardParams' 1.5 0.5
 
 
--- | Parameter set with four variables:
--- 1. mean-variance optimal asset
--- 2. undesirable legacy asset
--- 3. hedge asset
--- 4. mission target
---
--- Note: Computing expected utility over a four-dimensional space is very slow
--- (~2 sec on my machine with -O2).
-legacyParams :: ModelParameters
-legacyParams =
-  let alphas =       [0.09, 0.07, 0.09, 0.10] :: [Double]
-      sigmas = diagl [0.19, 0.30, 0.60, 0.20] :: Matrix Double
-      hedgeCorr  =  0.6   -- correlation between hedge and mission target
-      legacyCorr =  0.5   -- correlation between MVO asset and legacy asset
-      -- correlations = (4><4)
-      --   [ 1         , legacyCorr, 0        , 0
-      --   , legacyCorr, 1         , 0        , 0
-      --   , 0         , 0         , 1        , hedgeCorr
-      --   , 0         , 0         , hedgeCorr, 1
-      --   ] :: Matrix Double
+-- | Sample params where the MVO asset is the globlal market portfolio.
+gmpParams :: ModelParameters
+gmpParams =
+  let alphas =       [0.12, 0.07, 0.08, 0.10] :: [Double]
+      sigmas = diagl [0.30, 0.30, 0.30, 0.10] :: Matrix Double
       correlations = triangular
-        [ [1                                           ]
-        , [legacyCorr, 1                               ]
-        , [0.6       , 0         , 1                   ]
-        , [0.3       , 0         , hedgeCorr, 1        ]
+        [ [1               ]
+        , [0.6, 1          ]
+        , [0.6, 0.7, 1     ]
+        , [0.0, 0.2, 0.5, 1]
         ]
       covariances = toLists $ (sigmas <> correlations) <> sigmas
       rra = 2
@@ -488,13 +484,41 @@ legacyParams =
   in ModelParameters utility alphas covariances 4 []
 
 
-makeTable rra corr = printf "| %f | %f | %.3f | %.3f | %.1f%% |\n" corr rra (sol!!0) (sol!!1) (100 * sol!!1 / (sol!!0 + sol!!1))
-  where sol = analyticSolution $ standardParams' rra corr
+-- | Sample params where the MVO asset is a factor portfolio.
+factorParams :: ModelParameters
+factorParams =
+  let alphas =       [0.19, 0.07, 0.08, 0.10] :: [Double]
+      sigmas = diagl [0.30, 0.30, 0.30, 0.20] :: Matrix Double
+      correlations = triangular
+        [ [ 1               ]
+        , [ 0.5, 1          ]
+        , [ 0.5, 0.7, 1     ]
+        , [-0.1, 0.2, 0.5, 1]
+        ]
+      covariances = toLists $ (sigmas <> correlations) <> sigmas
+      rra = 2
+      targetImpact = 1
+      scale = 2    -- larger `scale` = takes longer to get high utility. gradient
+                   -- is proportional to `scale`
+      -- utility wealth target = (1 - scale * wealth**(1 - rra))
+      utility = crraUtility rra targetImpact
+  in ModelParameters utility alphas covariances 4 []
+
+
+-- | Parameter set with four variables:
+-- 1. mean-variance optimal (MVO) asset
+-- 2. undesirable legacy asset
+-- 3. hedge asset
+-- 4. mission target
+--
+-- Note: Computing expected utility over a four-dimensional space is slow
+-- (~2 sec on my machine with -O2).
+paramsWithLegacyAsset = gmpParams
 
 
 main :: IO ()
 main = do
   putStrLn $ intercalate ", " $ map (printf "%.3f")
-    $ getGradient (expectedUtility legacyParams) [0.25, 0.5, 0.0001]
+    $ getGradient (expectedUtility paramsWithLegacyAsset) [0.25, 0.5, 0.0001]
 
   return ()
