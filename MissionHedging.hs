@@ -7,7 +7,12 @@ Created     : 2022-02-21
 
 A quantitative model of the value of mission hedging.
 
-This program depends on these libraries: hmatrix, vector
+If you don't have Haskell, download it here: https://www.haskell.org/downloads/
+
+It is recommended that you compile this program with the optimization flag -O2,
+otherwise it will take a long time to run.
+
+This program depends on these Haskell libraries: hmatrix, vector
 
 To use this program, create a ModelParameters object defining the input
 parameters. (See near the bottom of this file for some examples.) Then you can
@@ -518,7 +523,12 @@ paramsWithLegacyAsset = gmpParams
 
 main :: IO ()
 main = do
-  putStrLn $ intercalate ", " $ map (printf "%.3f")
-    $ getGradient (expectedUtility paramsWithLegacyAsset) [0.25, 0.5, 0.0001]
+  -- Get the gradient of the given ModelParameters at the given point.
+  --
+  -- Note: The given point cannot contain any zeroes because that makes the
+  -- gradient uncomputable with the method I'm using. But you can approximate
+  -- zeroes by passing in a very small number.
+  let grad = getGradient (expectedUtility paramsWithLegacyAsset) [0.25, 0.5, 0.0001]
 
-  return ()
+  -- Pretty-print the gradient
+  putStrLn $ intercalate ", " $ map (printf "%.3f") grad
