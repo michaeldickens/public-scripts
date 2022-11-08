@@ -357,6 +357,13 @@ class Optimizer:
 
     def geometric_mean_with_uncertainty(self, weights, extra_cost=0):
         '''Find expected geometric mean when parameter values are uncertain.'''
+        # Note 2022-08-22: If you're maximizing geometric mean and your
+        # subjective credence of the return is distributed symmetrically about
+        # the geometric mean, then uncertainty doesn't change the optimal
+        # allocation. However, it DOES reduce desired risk if you have
+        # sub-logarithmic utility (or increase desired risk if you have
+        # super-logarithmic utility). But this function doesn't capture that
+        # fact.
         param_uncertainty = 0.2
         num_samples = 5000
 
