@@ -1,4 +1,4 @@
-This repository includes scripts too small for their own repos. Any undocumented scripts are incomplete. Even many of the documented ones are incomplete or rough.
+This repository includes scripts too small for their own repos. Some of the scripts are not documented because they're too incomplete to do anything useful yet.
 
 * Happiness
 Calculate the relationship between countries' reported happiness and GDP per capita.
