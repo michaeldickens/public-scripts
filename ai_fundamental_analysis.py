@@ -6,6 +6,14 @@ ai_fundamental_analysis.py
 Author: Michael Dickens <michael@mdickens.me>
 Created: 2022-11-07
 
+Estimate the fundamental value of AI stocks given certain assumptions about the Singularity.
+
+Three possible outcomes:
+
+1. mundane: singularity never happens; exponential growth continues
+2. terminal: singularity happens and money becomes meaningless, either due to extinction or post-scarcity utopia
+3. capture: singularity happens, and shareholders in AI stock capture the economic products of the AI
+
 """
 
 import math
@@ -15,7 +23,7 @@ def analyze_fundamentals():
     use_variables = True
     if use_variables:
         rra = 1
-        ai_alloc, discount, years_to_singularity, years_to_reversion, p_thesis, p_mundane, market_return, market_ai_alloc, starting_wealth = \
+        ai_alloc, discount, years_to_singularity, years_to_reversion, p_capture, p_mundane, market_return, market_ai_alloc, starting_wealth = \
             s.symbols('lambda, delta, Y_s, Y_r, p_t, p_m, r, lambda_m, W
             _0')
         actual_years_to_reversion = 14
@@ -29,7 +37,7 @@ def analyze_fundamentals():
         years_to_singularity = 20
         years_to_reversion = s.symbols('Y_r', negative=False)
         actual_years_to_reversion = 14
-        p_thesis = 0.1
+        p_capture = 0.1
         p_mundane = 0.4
         market_ai_alloc = 0.1
         ai_post_singularity = s.Float('1e32')
@@ -97,7 +105,7 @@ def analyze_fundamentals():
     )
 
     s.init_printing()
-    utility = p_thesis * utility_given_thesis + p_mundane * utility_given_mundane + (1 - p_thesis - p_mundane) * utility_given_terminal
+    utility = p_capture * utility_given_thesis + p_mundane * utility_given_mundane + (1 - p_capture - p_mundane) * utility_given_terminal
 
     deriv = s.diff(utility, ai_alloc)
     alloc_solution = s.solvers.solve(deriv.evalf(subs={years_to_reversion: actual_years_to_reversion}), ai_alloc, domain=s.S.Reals)
@@ -110,7 +118,7 @@ def analyze_fundamentals():
     if use_variables:
         s.pprint(alloc_solution)
         print(alloc_solution)
-        print(alloc_solution[0].evalf(subs={discount: 0.02, years_to_singularity: 20, years_to_reversion: 14, p_thesis: 0.1, p_mundane: 0.4, market_return: 0.05, market_ai_alloc: 0.1, starting_wealth: 3e6}))
+        print(alloc_solution[0].evalf(subs={discount: 0.02, years_to_singularity: 20, years_to_reversion: 14, p_capture: 0.1, p_mundane: 0.4, market_return: 0.05, market_ai_alloc: 0.1, starting_wealth: 3e6}))
 
     else:
         reversion_solution = s.solveset(deriv.evalf(subs={ai_alloc: market_ai_alloc}), years_to_reversion, domain=s.S.Reals)

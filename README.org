@@ -1,8 +1,34 @@
-This repository includes scripts too small for their own repos.
+This repository includes scripts too small for their own repos. Any undocumented scripts are incomplete. Even many of the documented ones are incomplete or rough.
 
 * Happiness
-
+Calculate the relationship between countries' reported happiness and GDP per capita.
 ** Data sources
-
 *** country-happiness.csv: World Happiness Report
 https://worldhappiness.report/ed/2020/
+* MissionHedging.hs
+A quantitative model of the value of mission hedging or mission-correlated investing.
+* ai_safety_now_later.py
+A rough attempt at modeling the value of giving now vs. later for AI safety, where there is some minimum amount of spending required to "solve" AI alignment.
+* daf_utility.py
+An estimate of the expected utility of putting money in a donor-advised fund vs. keeping it in a taxable account. This implementation has some subtle but major conceptual flaws.
+* donation_trick.py
+A rough attempt to calculate the expected value of an investment/donation strategy where you buy two anti-correlated assets, sell the one that goes down, and donate the one that goes up.
+* leverage.py
+Calculate the expected utility or the certainty-equivalent return of investing in an asset at a certain level of leverage. I mainly used this script to estimate the value of my company stock options when I worked at Affirm.
+* meta_options.py
+Monte Carlo simulation of the value of [[https://www.benkuhn.net/optopt/][meta-options]]. This has the same purpose as Ben Kuhn's script (https://github.com/benkuhn/option-val), but takes a different approach.
+* mvo.py
+Mean-variance optimizer. This script can:
+
+- find the mean-variance optimal portfolio given a volatility constraint /or/ a leverage constraint
+- find the geometric-mean-maximizing portfolio
+- find the geometric-mean-maximizing portfolio where expected returns are unknown but follow a known distribution
+* ramsey.py
+Solve non-standard variants of [[https://plato.stanford.edu/entries/ramsey-economics/][Frank Ramsey's optimal consumption schedule problem]], including:
+
+- where the discount rate declines over time
+- where actors can spend money to reduce the discount rate (such as by decreasing the probability of extinction), including variants of this scenario:
+  - where discount rate reductions are permanent
+  - where discount rate reductions are transient, and continual spending is required to keep rates low
+* x_risk_now_later.py
+Another rough attempt at modeling the value of giving now vs. later for x-risk.

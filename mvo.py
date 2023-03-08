@@ -210,7 +210,7 @@ my_favorite_data = dict(
         "Market", "VMOT", "ManFut", "GVAL"
     ],
     gmeans = [ 3,  6,  3,  9],
-    stdevs = [16, 13, 15, 22],
+    stdevs = [18, 15, 15, 22],
     correlations = [
         [ 1                ],
         [ 0.5,  1          ],
@@ -797,5 +797,5 @@ with open("data/historical-mvo.csv", "r") as fp:
     reader = csv.reader(fp)
     historical_data = [[float(x)/100 for x in row] for row in reader]
 
-optimizer.mvo(max_stdev=30, historical_data=historical_data)
-# optimizer.mvo(max_stdev=30)
+# optimizer.mvo(max_stdev=30, historical_data=historical_data)
+optimizer.mvo(max_stdev=30)
