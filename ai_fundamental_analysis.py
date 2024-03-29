@@ -20,12 +20,11 @@ import math
 import sympy as s
 
 def analyze_fundamentals():
-    use_variables = True
+    use_variables = False
     if use_variables:
         rra = 1
         ai_alloc, discount, years_to_singularity, years_to_reversion, p_capture, p_mundane, market_return, market_ai_alloc, starting_wealth = \
-            s.symbols('lambda, delta, Y_s, Y_r, p_t, p_m, r, lambda_m, W
-            _0')
+            s.symbols('lambda, delta, Y_s, Y_r, p_t, p_m, r, lambda_m, W_0')
         actual_years_to_reversion = 14
         ai_post_singularity = s.Float('1e32')
         market_post_singularity = ai_post_singularity * market_ai_alloc

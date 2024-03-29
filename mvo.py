@@ -798,4 +798,4 @@ with open("data/historical-mvo.csv", "r") as fp:
     historical_data = [[float(x)/100 for x in row] for row in reader]
 
 # optimizer.mvo(max_stdev=30, historical_data=historical_data)
-optimizer.mvo(max_stdev=30)
+optimizer.maximize_gmean(max_stdev=30, exogenous_portfolio_weight=0.99)
