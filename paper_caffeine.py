@@ -1,10 +1,13 @@
 """
 
-caffeine_from_paper.py
-----------------------
+paper_caffeine.py
+-----------------
 
 Author: Michael Dickens <michael@mdickens.me>
 Created: 2024-03-06
+
+Statistical analysis for a literature review on caffeine habituation.
+Citations for the papers used are listed along with the data.
 
 """
 
