@@ -581,7 +581,7 @@ class Optimizer:
             max_leverage=None,
             shorts_allowed=True,
             exogenous_portfolio_weight=0,
-            exogenous_weights=[1, 0, 0, 0],
+            exogenous_weights=None,
             verbose=True,
     ):
         '''max_stdev should be provided as a percentage.
@@ -591,6 +591,9 @@ class Optimizer:
         # If you short $1, you need to hold this much in cash, and you can invest the rest
         short_margin_requirement = 0.50
         endogenous_prop = 1 - exogenous_portfolio_weight
+        if exogenous_weights is None and exogenous_portfolio_weight == 0:
+            exogenous_weights = [0 for _ in self.asset_classes]
+            exogenous_weights[0] = 1
 
         leverage_constraint = optimize.LinearConstraint(
             [1 for _ in self.asset_classes],
@@ -796,6 +799,8 @@ optimizer = Optimizer(
 with open("data/historical-mvo.csv", "r") as fp:
     reader = csv.reader(fp)
     historical_data = [[float(x)/100 for x in row] for row in reader]
+
+
 
 # optimizer.mvo(max_stdev=30, historical_data=historical_data)
 optimizer.maximize_gmean(max_stdev=30, exogenous_portfolio_weight=0.99)
