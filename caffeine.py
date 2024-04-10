@@ -6,6 +6,8 @@ caffeine.py
 Author: Michael Dickens <michael@mdickens.me>
 Created: 2024-02-23
 
+Script for analyzing my caffeine self-experiment.
+
 """
 
 from datetime import datetime, timedelta
