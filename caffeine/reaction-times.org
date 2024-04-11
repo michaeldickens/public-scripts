@@ -1,4 +1,8 @@
-* TODO Reaction Time Test
+* Reaction Time Test
+** ignore [2024-01-29 Mon 22:06] 271 C melatonin
+:PROPERTIES:
+:ID:       1352a6a9-345b-4108-a7d1-30df875b151c
+:END:
 ** [2024-01-30 Tue 09:00] 283
 ** [2024-01-30 Tue 10:07] 267
 ** [2024-01-31 Wed 07:30] 263
@@ -215,3 +219,46 @@ I suspect that the reaction time might be ~10ms faster when my second monitor is
 ** [2024-03-29 Fri 08:54] 268 C m-off
 ** [2024-03-29 Fri 08:55] 258 C m-on
 Based on the data to date, monitor on vs. off doesn't matter (average reaction time 273.2 vs. 273.4 respectively).
+** [2024-03-30 Sat 11:34] 278
+** [2024-03-30 Sat 11:34] 278
+** [2024-03-31 Sun 22:08] 280
+** [2024-03-31 Sun 22:08] 285
+** [2024-04-01 Mon 07:43] 265
+:PROPERTIES:
+:ID:       4a7712c8-467b-4f07-bc3e-dac3d01780fc
+:END:
+** [2024-04-01 Mon 07:44] 268
+** [2024-04-01 Mon 09:41] 274 C
+** [2024-04-01 Mon 09:41] 278 C
+I feel hyper after taking caffeine but my reaction times are worse than they were pre-caffeine
+** [2024-04-02 Tue 09:12] 267
+** [2024-04-02 Tue 09:13] 274
+** [2024-04-03 Wed 07:53] 316
+nothing messed me up, I was just strugglin
+** [2024-04-03 Wed 07:53] 262
+** [2024-04-03 Wed 09:32] 263 C
+** [2024-04-03 Wed 09:33] 276 C
+** [2024-04-04 Thu 17:19] 261
+** [2024-04-04 Thu 17:19] 301
+** [2024-04-05 Fri 08:59] 276
+** [2024-04-05 Fri 08:59] 282
+** [2024-04-05 Fri 17:02] 269 C after gym
+** [2024-04-05 Fri 17:02] 287 C after gym
+** [2024-04-06 Sat 10:28] 267
+** [2024-04-06 Sat 10:29] 270
+** [2024-04-06 Sat 12:12] 268 decaf
+** [2024-04-06 Sat 12:13] 299 decaf
+** [2024-04-07 Sun 10:46] 291
+** [2024-04-07 Sun 10:47] 284
+** [2024-04-08 Mon 07:44] 289
+** [2024-04-08 Mon 07:44] 293
+** [2024-04-08 Mon 09:38] 281 C
+** [2024-04-08 Mon 09:39] 271 C
+** [2024-04-09 Tue 09:41] 262
+** [2024-04-09 Tue 09:41] 283
+** [2024-04-10 Wed 04:44] 288
+** [2024-04-10 Wed 04:45] 276
+** [2024-04-10 Wed 07:13] 267 C
+** [2024-04-10 Wed 07:14] 281 C
+** [2024-04-11 Thu 10:34] 285
+** [2024-04-11 Thu 10:35] 275

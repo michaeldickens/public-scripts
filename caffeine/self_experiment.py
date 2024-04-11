@@ -1,7 +1,7 @@
 """
 
-caffeine.py
------------
+self_experiment.py
+-------------------
 
 Author: Michael Dickens <michael@mdickens.me>
 Created: 2024-02-23

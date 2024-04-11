@@ -1,7 +1,7 @@
 """
 
-paper_caffeine.py
------------------
+paper.py
+--------
 
 Author: Michael Dickens <michael@mdickens.me>
 Created: 2024-03-06
