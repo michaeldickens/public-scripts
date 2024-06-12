@@ -98,6 +98,7 @@ PHASE_1_RANGE = (datetime(2024, 1, 30).date(), datetime(2024, 2, 23).date())
 PHASE_2_RANGE = (datetime(2024, 2, 24).date(), datetime(2024, 3, 3).date())
 PHASE_3_RANGE = (
     datetime(2024, 3, 5).date(),  # excluding the outlier day 2024-03-04
+    # datetime(2024, 3, 29).date(),
     datetime(2024, 4, 12).date(),
 )  # extended to 6 weeks
 PHASE_4_RANGE = (datetime(2024, 4, 13).date(), datetime(2024, 4, 21).date())
@@ -393,8 +394,8 @@ def control_for_sleep(phase_name):
     full_date_range = (PHASE_1_RANGE[0], PHASE_5_RANGE[1])
     sleep_key = "minutes"
 
-    sleep_durations = []
-    reaction_times = []
+    sleep_durations = {}
+    reaction_times = {}
     for date_index in range((full_date_range[1] - full_date_range[0]).days + 1):
         date = full_date_range[0] + timedelta(days=date_index)
         if date not in sleep_data:
@@ -404,31 +405,41 @@ def control_for_sleep(phase_name):
             print("RTs missing date:", date)
             continue
         minutes_asleep = sleep_data[date][sleep_key]
-        nocaf_RT = np.mean(nocaf_daily_RTs[date])
-        sleep_durations.append(minutes_asleep)
-        reaction_times.append(nocaf_RT)
+        if date in nocaf_daily_RTs:
+            RT = np.mean(nocaf_daily_RTs[date])
+            sleep_durations[date] = minutes_asleep
+            reaction_times[date] = RT
 
-    paired_data = np.array(list(zip(sleep_durations, reaction_times)))
+    # rolling_sleep_durations = {}
+    # for date in sorted(sleep_durations.keys())[14:]:
+    #     rolling_sleep_durations[date] = np.mean(
+    #         [sleep_durations[date + timedelta(days=d)] for d in range(-14, 1)]
+    #     )
+
+    # paired_data = np.array(
+    #     [
+    #         (rolling_sleep_durations[date], reaction_times[date])
+    #         for date in rolling_sleep_durations
+    #     ]
+    # )
+    paired_data = np.array([(sleep_durations[date], reaction_times[date]) for date in sleep_durations])
     slope, intercept, r_value, p_value, stderr = linregress(paired_data)
     print(
         f"\nRegression over sleep data:\n\tslope = {60*slope:.2f} ms/hour, p-value = {p_value:.5f}\n"
     )
 
     phase_range = phase_ranges[phase_name]
-    daily_RTs = caf_daily_RTs
     uncontrolled_reaction_times = {
-        date: daily_RTs[date]
-        for date in sorted(daily_RTs.keys())
-        if date >= phase_range[0] and date <= phase_range[1] and date in daily_RTs
+        date: reaction_times[date]
+        for date in reaction_times
+        if date >= phase_range[0] and date <= phase_range[1]
     }
 
     # control reaction times for sleep duration
-    avg_sleep_duration = np.mean(
-        [sleep_data[date][sleep_key] for date in uncontrolled_reaction_times.keys()]
-    )
+    avg_sleep_duration = np.mean(list(sleep_durations.values()))
     avg_RT = np.mean([np.mean(RTs) for RTs in uncontrolled_reaction_times.values()])
     controlled_reaction_times = {
-        date: RT + avg_RT - (intercept + slope * sleep_data[date][sleep_key])
+        date: RT + avg_RT - (intercept + slope * sleep_durations[date])
         for date, RT in uncontrolled_reaction_times.items()
     }
 
@@ -509,7 +520,7 @@ def caf_day1_vs_day3():
     )
 
 
-phase_name = "both-experiments"
-# control_for_sleep(phase_name)
-plot_regression(phase_name)
+phase_name = "experimental"
+control_for_sleep(phase_name)
+# plot_regression(phase_name)
 # caf_day1_vs_day3()
