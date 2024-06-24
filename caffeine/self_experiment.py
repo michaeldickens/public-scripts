@@ -64,7 +64,7 @@ for line in lines:
                 "extra": text_after or "",
             }
         )
-    elif line[:2] == "**" and line[3:9] != "ignore":
+    elif line[:2] == "**" and "ignore" not in line:
         print(f"Line did not match pattern: {line}")
 
 
@@ -103,7 +103,7 @@ PHASE_3_RANGE = (
 )  # extended to 6 weeks
 PHASE_4_RANGE = (datetime(2024, 4, 13).date(), datetime(2024, 4, 21).date())
 PHASE_5_RANGE = (datetime(2024, 4, 22).date(), datetime(2024, 6,  1).date())
-FULL_RANGE = (PHASE_1_RANGE[0], PHASE_3_RANGE[1])
+FULL_RANGE = (PHASE_1_RANGE[0], PHASE_5_RANGE[1])
 
 phase_ranges = {
     "calibration": PHASE_1_RANGE,
@@ -378,10 +378,10 @@ def read_sleep_data(filename, adjustments_filename):
     return sleep_data
 
 
-def control_for_sleep(phase_name):
+def control_for_sleep(phase_name, lookback_days=14):
     """
     Create a plot comparing raw reaction times vs. reaction times
-    controlling for time spent in bed the previous night.
+    controlling for time spent in bed the previous `lookback_days` nights.
 
     Note to readers: This function won't work because it tries to open a file
     on my computer containing the sleep data, and that path doesn't exist on
@@ -391,13 +391,12 @@ def control_for_sleep(phase_name):
         "/home/mdickens/programs/sync_scripts/sleep/data-2021-2024.csv",
         "/home/mdickens/org/notes.org",
     )
-    full_date_range = (PHASE_1_RANGE[0], PHASE_5_RANGE[1])
     sleep_key = "minutes"
 
     sleep_durations = {}
     reaction_times = {}
-    for date_index in range((full_date_range[1] - full_date_range[0]).days + 1):
-        date = full_date_range[0] + timedelta(days=date_index)
+    for date_index in range((FULL_RANGE[1] - FULL_RANGE[0]).days + 1):
+        date = FULL_RANGE[0] + timedelta(days=date_index)
         if date not in sleep_data:
             print("Sleep data missing date:", date)
             continue
@@ -405,24 +404,25 @@ def control_for_sleep(phase_name):
             print("RTs missing date:", date)
             continue
         minutes_asleep = sleep_data[date][sleep_key]
-        if date in nocaf_daily_RTs:
-            RT = np.mean(nocaf_daily_RTs[date])
-            sleep_durations[date] = minutes_asleep
+        daily_RTs = caf_daily_RTs
+        sleep_durations[date] = minutes_asleep
+        if date in daily_RTs:
+            RT = np.mean(daily_RTs[date])
             reaction_times[date] = RT
 
-    # rolling_sleep_durations = {}
-    # for date in sorted(sleep_durations.keys())[14:]:
-    #     rolling_sleep_durations[date] = np.mean(
-    #         [sleep_durations[date + timedelta(days=d)] for d in range(-14, 1)]
-    #     )
+    rolling_sleep_durations = {}
+    for date in sorted(sleep_durations.keys()):
+        rolling_sleep_durations[date] = np.mean(
+            [sleep_data[date - timedelta(days=d)][sleep_key] for d in range(lookback_days)]
+        )
 
-    # paired_data = np.array(
-    #     [
-    #         (rolling_sleep_durations[date], reaction_times[date])
-    #         for date in rolling_sleep_durations
-    #     ]
-    # )
-    paired_data = np.array([(sleep_durations[date], reaction_times[date]) for date in sleep_durations])
+    paired_data = np.array(
+        [
+            (rolling_sleep_durations[date], reaction_times[date])
+            for date in reaction_times
+        ]
+    )
+    # paired_data = np.array([(sleep_durations[date], reaction_times[date]) for date in sleep_durations])
     slope, intercept, r_value, p_value, stderr = linregress(paired_data)
     print(
         f"\nRegression over sleep data:\n\tslope = {60*slope:.2f} ms/hour, p-value = {p_value:.5f}\n"
@@ -436,18 +436,12 @@ def control_for_sleep(phase_name):
     }
 
     # control reaction times for sleep duration
-    avg_sleep_duration = np.mean(list(sleep_durations.values()))
+    avg_sleep_duration = np.mean(list(rolling_sleep_durations.values()))
     avg_RT = np.mean([np.mean(RTs) for RTs in uncontrolled_reaction_times.values()])
     controlled_reaction_times = {
-        date: RT + avg_RT - (intercept + slope * sleep_durations[date])
+        date: RT + avg_RT - (intercept + slope * rolling_sleep_durations[date])
         for date, RT in uncontrolled_reaction_times.items()
     }
-
-    # plot_likelihood(controlled_reaction_times, phase_range, 1)
-    # fig = plt.gcf()
-    # fig.set_size_inches(1.25 * fig.get_size_inches(), forward=True)
-    # plt.savefig(f"doc/caf-{phase_name}-likelihood-controlled.png", dpi=125)
-    # plt.show()
 
     print(f"Average sleep: {avg_sleep_duration / 60:.2f} hours. r^2 = {r_value**2:.2f}")
     plot_caf_or_nocaf(uncontrolled_reaction_times, phase_range, "raw", "blue")
@@ -520,7 +514,7 @@ def caf_day1_vs_day3():
     )
 
 
-phase_name = "experimental"
+phase_name = "experimental2"
 control_for_sleep(phase_name)
 # plot_regression(phase_name)
 # caf_day1_vs_day3()
