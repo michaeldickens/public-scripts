@@ -22,17 +22,18 @@ import re
 import requests
 import sys
 
-def fetch_metadata(search_url):
+def fetch_metadata(search_url, email_address=None):
     """
     Get metadata for a DOI or URL from CrossRef.
     """
     crossref_url = f"https://api.crossref.org/works/{search_url}"
 
-    # provide contact info in User-Agent header to get the better server
-    # "reserved for polite users"
-    headers = {
-        "User-Agent": "mailto:crossref@mdickens.me"
-    }
+    if email_address:
+        # provide contact info in User-Agent header to get the better server
+        # that's "reserved for polite users"
+        headers = {
+            "User-Agent": f"mailto:{email_address}"
+        }
     response = requests.get(crossref_url, headers=headers)
     response.raise_for_status()
     data = response.json()
@@ -71,8 +72,12 @@ def fetch_metadata(search_url):
 
 if __name__ == "__main__":
     # get DOI or URL from command line arguments
+    if len(sys.argv) < 2:
+        print("Usage: fetch_doi.py <DOI or URL> [email address]")
+        sys.exit(1)
     doi = sys.argv[1]
-    metadata = fetch_metadata(doi)
+    email_address = sys.argv[2] if len(sys.argv) > 2 else None
+    metadata = fetch_metadata(doi, email_address)
     print(
         metadata["short_citation"]
         + "\n"
