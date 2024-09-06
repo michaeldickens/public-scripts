@@ -492,3 +492,4 @@ computer seems to be behaving better now (?)
 ** [2024-06-08 Sat 12:37] 288
 ** [2024-06-09 Sun 08:44] 285
 ** [2024-06-09 Sun 08:45] 273
+** [2024-07-25 Thu 10:42] 292 adderall
