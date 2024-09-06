@@ -8,6 +8,7 @@ Created: 2024-08-30
 
 Estimate how much exercise improves life expectancy.
 
+------------
 Data sources
 ------------
 
@@ -25,7 +26,11 @@ LIFE_EXPECTANCY_GIVEN_DIE_THIS_YEAR = 0.5
 
 
 def read_mi_life_expectancy():
-    # based on 2010 US Census data because that's approximately when the data
+    """
+    Read life expectancy data for myocardial infarction (MI) patients.
+    Return a dictionary mapping demographic group to life expectancy by age.
+    """
+    # based on 2010 US Census because that's approximately when the data
     # was collected
     pop_demo_proportions = {
         "White": 0.64,
@@ -69,6 +74,10 @@ def read_mi_life_expectancy():
 
 
 def read_ssa_projections():
+    """
+    Read Social Security Administration (SSA) projected mortality tables.
+    Return a triple-nested dictionary of gender -> year -> age -> mortality rate.
+    """
     projected_mortality_tables = {}
     for gender in ["male", "female"]:
         gender_table = {}
@@ -88,6 +97,10 @@ def read_ssa_projections():
 
 
 def fetch_annual_mortality(projected_mortality_tables, birth_year):
+    """
+    Given a triple-nested mortality table, fetch annual mortality rates for
+    a given birth year.
+    """
     assert birth_year >= 2022 - 119, f"Birth year {birth_year} is too old for this data"
     assert birth_year <= 2099, f"Birth year {birth_year} is too young for this data"
 
@@ -106,6 +119,10 @@ def fetch_annual_mortality(projected_mortality_tables, birth_year):
 
 
 def calculate_annual_mortality(life_expectancy):
+    """
+    Given a life expectancy table, calculate annual mortality rates.
+    Return a dictionary mapping age to annual mortality rate.
+    """
     annual_mortality = {}
     for age in list(life_expectancy.keys())[:-1]:
         curr_life_expectancy = life_expectancy[age]
@@ -120,6 +137,10 @@ def calculate_annual_mortality(life_expectancy):
 
 
 def calculate_life_expectancy(annual_mortality, max_age_LE):
+    """
+    Given annual mortality rates, calculate life expectancy.
+    Return a dictionary mapping age to life expectancy.
+    """
     reverse_ages = list(reversed(annual_mortality.keys()))
     life_expectancy = {}
     life_expectancy[reverse_ages[0] + 1] = max_age_LE
@@ -136,6 +157,12 @@ def calculate_life_expectancy(annual_mortality, max_age_LE):
 
 
 def read_exercise_rr_helper(filename):
+    """
+    Read exercise relative risk (RR) data from a file.
+
+    Return a list of dictionaries, each mapping column name to value. The
+    information in the dictionary depends on the file being read.
+    """
     exercise_studies = []
 
     with open(filename, "r") as f:
@@ -163,6 +190,11 @@ def read_exercise_rr_cancer():
 
 
 def life_expectancy_with_exercise(life_expectancy, RR):
+    """
+    Given a life expectancy table and a relative risk (RR), return an
+    adjusted life expectancy table with mortality changed according to the
+    given RR.
+    """
     mortality = calculate_annual_mortality(life_expectancy)
     exercise_mortality = {
         age: mortality[age] * RR for age in mortality
@@ -171,7 +203,6 @@ def life_expectancy_with_exercise(life_expectancy, RR):
     return {
         age: exercise_LE[age] for age in life_expectancy if age in exercise_LE
     }
-
 
 
 def mi_stuff():
@@ -194,6 +225,7 @@ def mi_stuff():
     print(f"Average duration: {avg_duration:.2f} months")
     print(f"Weighted RR (outer-annualized): {RR_annualized:.3f}")
     print(f"Weighted RR (cheaty outer-annualized): {0.74 ** (12 / avg_duration):.3f}")
+
 
 def cancer_stuff():
     exercise_cancer = read_exercise_rr_cancer()
