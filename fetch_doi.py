@@ -27,7 +27,7 @@ def fetch_metadata(search_url, email_address=None):
     Get metadata for a DOI or URL from CrossRef.
     """
     crossref_url = f"https://api.crossref.org/works/{search_url}"
-
+    headers = {}
     if email_address:
         # provide contact info in User-Agent header to get the better server
         # that's "reserved for polite users"
