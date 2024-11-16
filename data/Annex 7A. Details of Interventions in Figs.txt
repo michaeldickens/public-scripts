@@ -1,0 +1,300 @@
+           Intervention           Cost-effective-       Brief summary of details (unless otherwise specified,
+                                   ness US $ of                    comparator is “usual care”)
+                                   2012/DALY
+    Blood pressure                Cost-saving        A customized, guideline-oriented training program for
+    management,1 UMIC                                primary healthcare providers was conducted in four
+                                                     community health centres in China, 140 hypertensive
+                                                     patients were recruited and followed-up for 12 months
+                                                     (urban, rural)
+    Polypill for high absolute    Cost-saving        Treatment with four drugs for people with an absolute
+    risk CVD2, UMIC                                  cardiovascular risk of more than 20% at 10 years in
+                                                     Argentina
+    ACE inhibitor vs no           Cost-saving        Regimen consisting of a calcium- channel blocker, and an
+    medication, heart failure,                       ACE-inhibitor was given to patients older than 55 years
+    with access to treatment3                        without a history of CVD to prevent CVD, with access to
+                                                     treatment
+    Give female condom to sex     Cost-saving        Distribute female condoms among commercial sex workers
+    workers4, South Africa                           and their clients in South Africa
+    Preventive chemotherapy       9                  Annual invermectin treatment
+    for onchocerciasis5,6
+    Treat severe malaria with     5                  Use of parenteral artesunate to treat children with severe
+    artesunate vs quinine7,8                         malaria in Africa and south-east Asia versus refer
+
+    Salt reduction policy in      Cost-saving to     Reduce salt content in processed and home-prepared food
+    food 2,9,10                   45
+    Voluntary male                10                 Adult male circumcision program in sub-Saharan Africa
+    circumcision11–13
+    Add syphilis screen to HIV    9                  Rapid test with immediate results and treatment vs
+    screen/treat,14 LIC                              syndromic surveillance for pregnant women
+    Emergency obstetric care15    15                 Estimates from a small hospital in Bangladesh over 3
+                                                     months; used judgement to compare to outcome with no
+                                                     treatment; 62% of DALYs from obstetric care
+    Pre-hospital ECG vs           16                 Prehospital Electrocardiogram (ECG) by general
+    none,16 MIC                                      practitioners in India
+    Screen/treat syphilis,17 LIC   17               ICS syphilis screening, penicillin treatment in 43 countries in
+                                                    Sub-Saharan Africa
+    Detect and treat human         22–83            Literature review on interventions to reduce, control or
+    African trypanosomiasis18                       eliminate Human African Trypanosomiasis
+    Treatment smear positive       6–49             Literature review: Conventional health facility-based
+    TB with first-line drugs,19                     approaches to care and increased decentralization, and
+    LIC                                             involvement of communities in care provision for
+                                                    tuberculosis (TB)
+    Cataract surgery20             6–70             Survey of other studies: use results from nine low and
+                                                    lower-middle income countries
+    Detect and treat visceral      18               Compare chemotherapy to no intervention
+    leishmaniasis21
+    Treat malaria with ACT,22      18–34            Modelled to estimate the incremental cost-effectiveness of
+    Africa                                          using artemisinin-based combination therapies to address
+                                                    antimalarial resistance
+    PMTCT Option B HIV             26               Use of HAART approach for prevention of mother-to child
+    versus no treatment,23                          transmission in two health centers in Malawi
+    Africa
+    ACE inhibitor versus no        28               Regimen consisted of a calcium-channel blocker, and an
+    medication,3 heart failure,                     ACE-inhibitor was
+    no access to treatment                          given to patients older than 55 years without a history of
+                                                    CVD to prevent CVD
+    Cleft lip and palate           9–108            Corlew: study of one year’s worth of patients at Kathmandu
+    repair24–26                                     hospital;
+                                                    Magee: study of eight surgical missions to four countries in
+                                                    one year.
+
+                                                    Moon: study of four years of surgical missions to Vietnam.
+                                                    Both studies: compared to no intervention.
+    Hernia repair27,28             11–101           Tension-free inguinal hernia repair, four hospitals in
+                                                    western Ghana; expert opinion used to compare to no
+                                                    treatment (2010 study). Same method applied to surgical
+                                                    mission to small hospital in rural Ecuador (2012 study)
+    Intermittent preventive        4–422            Analysis of data for delivery of intermittent preventive
+    treatment malaria in                            treatment of malaria in infants in sub-Saharan Africa
+    infants, Africa29,30
+    Preventive chemotherapy        22–83            Trichiasis surgery to control trachoma in sub-Saharan Africa
+    for trachoma31,32
+    Intermittent preventive        4–591            Community-based delivery of intermittent preventive
+    treatment malaria in                            treatment with sulfadoxine-pyrimethamine to pregnant
+    pregnancy,33 Africa                             women
+    Detect and treat leprosy34     50               Interventions to prevent disability due to leprosy
+    Indoor Residual Spraying       26–112           Two Indoor Residual Spraying programs operating on a
+    for malaria,35 Africa                           national scale in South Africa and Mozambique
+    Comprehensive                  28–117           Malaria Control measures consisted of vegetation clearance,
+    management malaria                              modification of river boundaries, draining swamps, oil
+    (spray+nets+treat),36 Africa                    application to open water bodies and house screening
+    Treatment smear negative        42–84           Literature review
+    TB first-line drugs,19 LIC
+    Hepatitis B vaccination,37–39   47–97           Hepatitis B vaccination, three doses Hepatitis B vaccine
+    LIC                                             @$1.08 per dose
+    Add Xpert to smear to           50–114          Introduction of Xpert for TB care, compared to a base case of
+    diagnose TB,40 LMIC                             smear microscopy and clinical diagnosis in India, South
+                                                    Africa and Uganda
+    Supply ITNs for malaria,41–     61–94           Adding insecticide-treated nets in Democratic Republic of
+    43 Africa                                       Congo, western Kenya and Tanzania
+    Rural trauma hospital 44        87              Modelled based on costs and estimated DALYs saved for all
+                                                    admissions over a three-month period for a trauma hospital
+                                                    in Cambodia, excluding outpatients
+    Home presumptive                93              Treating fever at home with artesunate and amodiaquine
+    treatment malaria,45 Africa
+    Preventive chemotherapy         114             Integrated Mass Drug Administration for schistosomiasis
+    for schistosomiasis and                         and soil-transmitted helminthiasis in four Communities in
+    STHs46                                          Cote d’Ivoire
+    Prevention of Mother-To-        65–251          Long-course ART prophylaxis for pregnant women in
+    Child Transmission                              Nigeria and Uganda.
+    (PMTCT) Option B HIV vs
+    Option A,47,48 Africa
+    Primary prevention of           135             Treatment with intramuscular penicillin for South African
+    ARF/RHD, children with                          children presenting with CDR score higher than two
+    GAS pharyngitis49
+    Prevention of Mother-To-        26–730          Short-course PMTCT program versus no treatment
+    Child Transmission
+    (PMTCT) Option A HIV vs
+    no treatment,50–53 Africa
+    Add syphilis screen to HIV      140             Adding syphilis screen and treat to HIV screen and treat
+    screen/treat,54 UMIC                            program in China
+    Beta-blocker and ACE            124–219         Regimen consisted of a beta-blocker and an ACE-inhibitor
+    inhibitor vs no medication,                     was given to patients with a history of CVD to prevent CVD,
+    heart failure, access to                        with access to treatment
+    treatment3
+    Scale up ART to all <350, or    188–256         Scaling up access to antiretroviral therapy (ART) for all
+    all infected,55,56 S Af                         identified HIV-infected individuals in South Africa
+    Treat breast cancer MIC57       230             Treat (vs not treat) cancer at any stage in Mexico
+    *HPV (Human                     198–296         HPV vaccine of young girls in Brazil, 70% vaccine coverage.
+    Papillomavirus)                                 Converted from QALY’s.
+    vaccination @$50/girl
+    MIC58,59
+    Trauma center60                 218–302         Modelled based on costs and estimated DALYs saved
+                                                    associated with all admissions for a trauma hospital over a
+                                                    three-month period. A higher proportion in Nigeria was
+                                                    life-saving surgery; Haiti includes burns.
+    Treat TB with second-line      264              Systematic review of treatment for Multidrug-Resistance
+    drugs MIC61                                     Tuberculosis (TB)
+    Screen/treat for syphilis      200–369          Program for preventing mother-to-child transmission of
+    UMIC62,54                                       syphilis in China
+    Beta-blocker and ACE           274              Regimen consisted of a beta-blocker and an ACE-inhibitor
+    inhibitor vs no med, heart                      was given to patients with a history of CVD to prevent CVD,
+    failure, no access to                           without access to treatment
+    treatment3
+    Older anti-epileptic drug      279              Older anti-epileptic drug in primary care in Nigeria: 50%
+    in primary care MIC63                           coverage
+    Intrapartum care64–66          211–492          Maternal health policy model used to evaluate a package of
+                                                    care that includes safe abortion and surgical treatment of
+                                                    emergency obstetric care
+    Eradicate yaws (detect and     324              Four yaws eradication pilot sites and other mars treatment
+    treat)67                                        campaigns in 12 endemic countries in 2015-2020
+    PMTCT Option A HIV vs          355              Prophylaxis provided to mothers and to child, if delivered in
+    no treatment,50 SE Asia                         a healthcare facility
+                                                    Prevention of Mother-To-Child Transmission: option A is
+                                                    single-drug regimen provided to mother during pregnancy
+                                                    and lactation
+    PMTCT (Eliination of           251–502          Lifetime mutipe-drug antiretroviral therapy for pregnant
+    Mother-To-Child                                 women
+    Tranmission) Option B+
+    HIV versus Option A,68,48
+    Africa
+    Treat colorectal cancer        430              Treat CRC in WHO region AFR-E, 95% coverage
+    (CRC),69 LIC
+    Maintenance psychosocial       437              Maintenance treatment with fluoxetine and cognitive
+    care for depression,                            behavioural therapy for major depression in Thailand over
+    primary care,70 UMIC                            five years
+    Non-emergency                  359–540          Volunteer surgical missions in Dominican Republic and
+    orthopaedic conditions71,72                     Nicaragua, (knee osteoarthritis, fractures, dislocations,
+                                                    amputations, injured nerves and congenital malformations)
+    BCC plus regulation, sex       557–570          Interventions include community mobilization, promotional
+    establishments,73 LAC                           media, interpersonal communication and counseling,
+                                                    implemented in female sex establishments in the Dominican
+                                                    Republic
+    Secondary prevention           570–970          Secondary prevention consists of giving aspirin, statin and
+    (medication) CVD vs no                          a calcium-channel blocker to patients with a history of CVD
+    treatment74
+    Episodic psychosocial care     914              Episodic treatment with fluoxetine and cognitive
+    for depression, primary                         behavioural therapy for major depression in Thailand
+    care,70 UMIC
+    HPV (Human                     168–5168         HPV vaccination at age 12 in Thailand, 100% compliance;
+    PapillomaVirus)                                 uses QALYs
+    vaccination @$240+/girl75–77
+    Use Xpert to diagnose TB,     810–1316         Implementation of Xpert for Tuberculosis diagnosis in five
+    MIC78                                          southern African countries, compared to current diagnostic
+                                                   strategy of sputum smear
+    BCC (Behavior Change          1186             Interventions include community mobilization, promotional
+    Communications) alone,                         media, interpersonal communication and counseling,
+    sex establishments,73 LAC                      implemented in female sex establishments in the Dominican
+                                                   Republic
+    Primary prevention CVD        1373             Antihypertensive therapy was given to individuals in South
+    abs risk >40% UMIC3                            Africa
+                                                   having an absolute risk of CVD over the next ten years of
+                                                   40%
+    Facility-based treatment of   1427–1574        Treat schizophrenia with anti-psychotic and psychosocial
+    schizophrenia with drugs,                      treatment in psychosocial care center
+    MIC63,79
+    Telemedicine diabetic         1605             Screening once or twice a lifetime versus no screening
+    retinopathy screening, 1-2
+    times/lifetime MIC80
+    Treatment of depression in    1312–2048        Treatment with anti-depressant and cognitive behavioural
+    primary care with drugs,                       therapy in primary healthcare
+    MIC63,70
+    Screen and treat breast       1838             Mammography and treat (vs neither) in Mexico
+    cancer MIC57
+    Primary prevention CVD        1070–3207        Patients without a history of CVD were given aspirin and
+    with four drugs MIC74,81                       statin, vs no medication
+    Vector control for dengue82   2500–3000        43 insecticide-based vector control strategies including
+                                                   larval and adult control for a five-year period
+    Online sex education to       1180–10256       Online sexual-health education course targeting ninth-
+    prevent sexually                               grade students in Colombian urban public secondary
+    transmitted infections83                       schools
+    Screen and treat breast       3578             Biennial mammography for women aged 40-69 + treat all (vs
+    cancer LIC84                                   not) in Ghana
+    PMTCT Option A (with          3092–7924         Prevention of Mother-To-Child Transmission (Counselling
+    mass screening) versus no                      pre and post test, and nevirapine for mother and child if
+    treatment,85 LAC                               accepted)
+    PrEP-ARV for for non-         Cost-saving to   PrEP-ARV (pre-exposure prophylaxis with antiretrovials)
+    infected partner,             6468             for non-infected partner, serodiscordant couples
+    serodiscordant couples86
+    Treat severe malaria with     5                Use of parenteral artesunate to treat children with severe
+    artesunate versus                              malaria in Africa and Southeast Asia
+    quinine,7,8 Africa &
+    Southeast Asia
+    Zinc added to oral            10–50            Used zinc as adjunct therapy to standard treatment of acute
+    rehydration therapy87                          childhood diarrhea
+    Community management          25–40            Community-based therapeutic care: Diagnosis, RUTF
+    severe-acute                                   (Ready-to-Use-Therapeutic Food), supplements, in-patient
+    malnutrition97–99                              treatments, out-patient visits, weekly follow ups
+    Maternal and neonatal care    13–126            Maternal and neonatal services delivered at home, with
+    at home88                                       community mobilization and health system strengthening
+    Micronutrient                 20–100            Vitamin A supplementation, fortification and
+    interventions                                   biofortification, zinc supplementation and fortification, and
+    (biofortification,                              iron, folic acid and Vitamin B12 fortification
+    fortification,
+    supplementation)89–96
+    Management of obstructed      77                Skilled attendance at birth, offering first level maternal and
+    labour100                                       neonatal care around childbirth, emergency obstetric and
+                                                    neonatal care around and after birth
+    Clean delivery kit and        82                Training traditional birth attendants (TBAs) to perform
+    train TBAs88                                    interventions targeting birth asphyxia, hypothermia and
+                                                    neonatal sepsis
+    Education programmes on       95                Health facility-based nutrition/water and sanitation
+    nutrition/WASH101                               education program targeting children under 2 years;
+                                                    converted from deaths-averted
+    Home management of            96                Treat fever with artesunate-amodiaquine
+    fever with antimalarials
+    versus referral45
+    Original EPI-6 (Expanded      103               Infant immunization
+    Program of Immunization
+    with six vaccines) plus
+    Hepatitis B103,37–39
+    Pneumococcus and              103               Implementing pneumococcus and rotavirus vaccination
+    rotavirus,104–116 LIC                           program; low income countries are eligible to procure
+                                                    vaccines from Gavi at low prices
+    Handwashing BCC               90–225            Increase hand-washing after handling child stool and
+    (behavior change                                disposal of stool in latrines
+    communications)102
+    Oral rehydration therapy87    153               Standard case management of acute childhood diarrhea
+                                                    with oral rehydration salts
+    Household water               190               Household chlorination
+    treatment, LIC120
+    Access to modern              150–300           Universal access to modern contraceptives
+    contraceptives119
+    Quality improvement           305               Used facility data to monitor indicators of common technical
+    protocol newborns in                            interventions. Staff worked collaboratively to identify
+    hospital88                                      strategies to overcome service delivery barriers and improve
+                                                    facility care
+    Intrapartum care in Latin     310               Intrapartum care and comprehensive emergency obstetric
+    America and the                                 care
+    Caribbean64
+    Intrapartum care,65,66,121    200–500           Facility-based birth with Traditional Birth Attendants,
+    LICs*                                           transport from home to referral facility,
+                                                    transport from facility to emergency obstetrical care or from
+                                                    basic to comprehensive emergency obstetric care,
+                                                     availability of quality emergency obstetric care and facility
+                                                     expedient quality care
+    Comprehensive nutrition             353          Interventions addressing undernutrition and micronutrient
+    package (all interventions                       deficiencies in women and children in 34 countries
+    Lancet 2013)
+    *Mother's groups to                 150–1000     Mother’s group to improve maternal and neonatal health in
+    improve maternal/neonatal                        Bangladesh and India; converted from LYS
+    health117,118
+    HiB and rubella added to            368–768      Introduction of HiB and rubella into DPT-Hepatitis B
+    EPI, 105,123–128 LICs                            program
+    Region specific vaccines            368–768      Japanese encephalitis vaccination program for 9 month olds
+    (Yellow fever, Japanese                          (routine immunization) (at US$0.30 per dose), reactive
+    encephalitis, meningitis                         meningococcal vaccination (at US$0.64 per dose),
+    A)129–131
+    Pneumococcus and                    368–768      Add two vaccines to national vaccination program
+    rotavirus (market price,
+    lower-mid income
+    countries)104,105,111,113,132–140
+    Cholera and typhoid                 2018         School-based vaccination program targeting school children
+    vaccination141,142                               (5-14 years)
+    Pneumococcus and                    2018         Adding pneumococcus and rotavirus vaccination to
+    rotavirus (market price,                         standard vaccinations
+    upper-mid IC)113,114,133,135,143–
+    146
+
+    C-section, all LMICs147             1600–2600    Treating obstructed labor with Caesarean delivery in 49
+                                                     countries, across multiple regions, identified by the WHO
+    Rural water                  2200                Piped water supply and sewer connection, 98% coverage
+    supply/sanitation, LIC148
+    Urban water                  2900              Piped water supply and sewer connection, 98% coverage
+    supply/sanitation, LIC148
+    Microfinance/gender          2910              Microfinance with gender and HIV training in four villages
+    training for intimate                          in South Africa
+    partner violence149
+    Note: CVD = cardiovascular disease; LIC = low income country/countries; MIC = middle income
+    country/countries; LMIC = low and middle income country/countries; UMIC = upper-middle income
+    country/countries
