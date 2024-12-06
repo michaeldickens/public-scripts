@@ -1,7 +1,7 @@
 """
 
-dcp3.py
--------
+intervention_power_laws.py
+--------------------------
 
 Author: Michael Dickens <michael@mdickens.me>
 Created: 2024-11-15
@@ -19,6 +19,41 @@ numbers from the table in Annex 07A of the DCP3 report.
 from matplotlib import pyplot as plt
 import numpy as np
 from scipy import stats
+
+
+def pareto_goodness_of_fit(samples):
+    """Perform a goodness-of-fit test using the method from
+    Suarez-Espinoza et al. (2018),
+    "A goodness-of-fit test for the Pareto distribution."
+    http://soche.cl/chjs/volumes/09/01/Suarez-Espinosa_etal(2018).pdf
+
+    Return the Kendall correlation coefficient between the samples and the
+    estimators. A smaller correlation indicates a worse fit. There is no known
+    analytic solution for the p-value given the correlation, but roughly
+    speaking, a correlation of < 0.95 is potentially a bad fit, and < 0.8 is
+    almost certainly a bad fit. Larger samples should find higher correlations.
+    See Suarez-Espinoza et al. (2018) for a table of empirically-determined
+    p-values.
+
+    This test can detect thin-tailed distributions but it's still bad at
+    distinguishing between Pareto and lognormal distributions (both give high
+    correlations).
+    """
+    samples = sorted(samples)
+    estimators = []
+
+    # This is slow. I tried writing a vectorized version but it was hard to
+    # read and barely faster.
+    for i in range(int(0.9 * len(samples))):
+        estimator = sum([
+            (samples[m] - samples[i]) / (len(samples) - (i + 1))
+            for m in range(i + 1, len(samples))
+        ])
+        estimators.append(estimator)
+
+    R = stats.kendalltau(samples[:len(estimators)], estimators)
+    return R.statistic
+
 
 def alpha_to_rra(alpha):
     """
@@ -53,10 +88,11 @@ def dcp3_power_law():
     # fit entry_means to a Pareto distribution
     fitparams = stats.pareto.fit(entry_means)
     alpha, loc, scale = fitparams
+    lognorm_fitparams = stats.lognorm.fit(entry_means)
 
     # test goodness of fit
     ks = stats.kstest(entry_means, 'pareto', args=fitparams)
-    lognorm_ks = stats.kstest(entry_means, 'lognorm', args=stats.lognorm.fit(entry_means))
+    lognorm_ks = stats.kstest(entry_means, 'lognorm', args=lognorm_fitparams)
 
     print(f"DCP3 DALYs/$\n\talpha: {alpha:.02f}\n\tRRA: {alpha_to_rra(alpha):.02f}\n\tloc: {loc:.2g}, scale: {scale:.2g}")
 
@@ -92,6 +128,7 @@ def dcp3_power_law():
     plt.ylabel("Cumulative probability")
     plt.scatter(entry_means, cdf)
     plt.plot(entry_means, stats.pareto.cdf(entry_means, *fitparams))
+    plt.plot(entry_means, stats.lognorm.cdf(entry_means, *lognorm_fitparams), color='green')
     plt.gcf().set_size_inches(10, 8)
     plt.savefig("data/dcp3-curve-fit.png", dpi=150)
     plt.show()
@@ -119,9 +156,8 @@ def cost_effectiveness_with_error(true_alpha, estimate_error=0.2, num_samples=10
     alpha, loc, scale = stats.lomax.fit(estimated_DALYs_per_dollar)
     ks = stats.kstest(estimated_DALYs_per_dollar, 'lomax', args=(alpha, loc, scale))
     if show_output:
-        print(f"true alpha {true_alpha:.2f} --> estimated alpha {alpha:.02f} (difference {alpha - true_alpha:.02f})")
+        print(f"true alpha {true_alpha:.2f}  -->  {alpha:.02f} estimated alpha (goodness-of-fit: p = {ks.pvalue:1.1g})")
         # print(f"\tloc = {loc}, scale = {scale}")
-        # print(f"\tgoodness-of-fit: p = {ks.pvalue}")
 
     # show scatterplot and fitted curve
     if show_plot:
@@ -137,15 +173,34 @@ def cost_effectiveness_with_error(true_alpha, estimate_error=0.2, num_samples=10
     return alpha
 
 
-def run_dcp3_sims():
+def sim_goodness_of_fit():
+    for true_alpha in np.linspace(0.8, 1.8, 6):
+        cost_effectiveness_with_error(true_alpha, 1, num_samples=10000, show_plot=False)
+
+
+def sim_goodness_of_fit_given_error():
+    # for error in np.linspace(0.5, 1, 11):
+    for error in np.linspace(0.8, 1, 5):
+        print(f"At error {error:.2f}:\n\t", end='')
+        cost_effectiveness_with_error(1.2, error, num_samples=5000, show_plot=False)
+
+
+def sim_bias():
     """
     Simulate what happens on average when we get 93 cost-effectiveness
     samples (which is the size of the DCP3 data set) with some noise in the
     cost-effectiveness estimate. How well do the estimates fit a Pareto
     distribution, and is the alpha estimate biased?
     """
-    true_alpha = 1.1
-    est_alphas = [cost_effectiveness_with_error(true_alpha, 1, num_samples=93, show_output=False, show_plot=False) for _ in range(10000)]
+    true_alpha = 1.2
+    error = 1
+    est_alphas = [cost_effectiveness_with_error(true_alpha, error, num_samples=93, show_output=False, show_plot=False) for _ in range(1000)]
 
-    print(f"mean estimate: {np.mean(est_alphas):.02f} (true alpha = {true_alpha}). stdev: {np.std(est_alphas):.02f}")
+    print(f"at error {error}, mean estimate: {np.mean(est_alphas):.02f} (true alpha = {true_alpha}). stderr: {np.std(est_alphas) / np.sqrt(len(est_alphas)):.02f}")
     print(f"p-value of bias: {stats.ttest_1samp(est_alphas, true_alpha).pvalue:.02f} (t = {stats.ttest_1samp(est_alphas, true_alpha).statistic:.01f})")
+
+
+# dcp3_power_law()
+sim_goodness_of_fit()
+# sim_goodness_of_fit_given_error()
+# sim_bias()
