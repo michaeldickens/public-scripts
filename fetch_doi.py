@@ -1,20 +1,21 @@
-"""
-
-fetch_doi.py
+"""fetch_doi.py
 -------------
 
 Author: Michael Dickens <michael@mdickens.me>
 Created: 2024-08-23
 
 Look up an article citation given a DOI or URL. The DOI/URL is passed as a
-command-line argument, and the citation is printed to stdout across multiple lines in the
-following format:
+command-line argument, and the citation is printed to stdout across multiple
+lines in the following format:
 
     Lastname et al. (Year)
     All author names (Year)
     Title
     URL
     DOI
+
+I use this script as the backend to an Emacs command that inserts citations into
+articles with the press of a button.
 
 """
 

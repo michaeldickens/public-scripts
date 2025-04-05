@@ -6,9 +6,6 @@ ai_safety_now_later.py
 Author: Michael Dickens <michael@mdickens.me>
 Created: 2021-07-29
 
-Input variables are initialized at the top of the AISafetyModel class. These
-can be freely changed.
-
 """
 
 from typing import Callable, List, Tuple

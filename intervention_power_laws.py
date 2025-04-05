@@ -16,8 +16,9 @@ numbers from the table in Annex 07A of the DCP3 report.
 
 """
 
-from matplotlib import pyplot as plt
+import csv
 import numpy as np
+from matplotlib import pyplot as plt
 from scipy import stats
 
 
@@ -63,24 +64,10 @@ def alpha_to_rra(alpha):
     return 1/alpha
 
 
-def dcp3_power_law():
+def fit_power_law(source_name, entries):
     """
-    Fit the DCP3 DALYs/$ data to a power law (Pareto distribution).
+    Fit a list of DALYs/$ data to a power law (Pareto distribution).
     """
-    with open("data/DCP3 cost per DALY.txt") as f:
-        text = f.read()
-        text_entries = text.split(',')
-        entries = []
-        for entry in text_entries:
-            if '–' in entry:
-                entry = [float(x) for x in entry.split('–')]
-            else:
-                entry = [float(entry), float(entry)]
-
-            # flip from $/DALY to DALYs/$
-            entry = 1 / np.array(entry)
-            entries.append(entry)
-
     entries = np.array(entries)
     entry_means = stats.gmean(entries, axis=1)
     entry_means.sort()
@@ -94,7 +81,7 @@ def dcp3_power_law():
     ks = stats.kstest(entry_means, 'pareto', args=fitparams)
     lognorm_ks = stats.kstest(entry_means, 'lognorm', args=lognorm_fitparams)
 
-    print(f"DCP3 DALYs/$\n\talpha: {alpha:.02f}\n\tRRA: {alpha_to_rra(alpha):.02f}\n\tloc: {loc:.2g}, scale: {scale:.2g}")
+    print(f"DALYs/$\n\talpha: {alpha:.02f}\n\tRRA: {alpha_to_rra(alpha):.02f}\n\tloc: {loc:.2g}, scale: {scale:.2g}")
 
     # pvalue tests the null hypothesis that the data follows a Pareto
     # distribution. A low p-value is evidence that the data is not
@@ -122,7 +109,7 @@ def dcp3_power_law():
 
     # show scatterplot and fitted curve
     cdf = np.linspace(0, 1, len(entry_means))
-    plt.title("DCP3 DALYs/$ Cumulative Distribution Function")
+    plt.title("DALYs/$ Cumulative Distribution Function")
     plt.xscale("log")
     plt.xlabel("DALYs/$ (log scale)")
     plt.ylabel("Cumulative probability")
@@ -130,8 +117,45 @@ def dcp3_power_law():
     plt.plot(entry_means, stats.pareto.cdf(entry_means, *fitparams))
     plt.plot(entry_means, stats.lognorm.cdf(entry_means, *lognorm_fitparams), color='green')
     plt.gcf().set_size_inches(10, 8)
-    plt.savefig("data/dcp3-curve-fit.png", dpi=150)
+    plt.savefig(f"data/{source_name}-curve-fit.png", dpi=150)
     plt.show()
+
+
+def dcp3_power_law():
+    with open("data/DCP3 cost per DALY.txt") as f:
+        text = f.read()
+        text_entries = text.split(',')
+        entries = []
+        for entry in text_entries:
+            if '–' in entry:
+                entry = [float(x) for x in entry.split('–')]
+            else:
+                entry = [float(entry), float(entry)]
+
+            # flip from $/DALY to DALYs/$
+            entry = 1 / np.array(entry)
+            entries.append(entry)
+
+    fit_power_law("DCP3", entries)
+
+
+def aim_power_law():
+    with open("data/Ambitious-Impact-CEEs.tsv") as f:
+        reader = csv.DictReader(f, delimiter="\t")
+        entries = []
+        for row in reader:
+            if row["Cost-effectiveness (DALY/$)"] is None:
+                continue
+            entry = float(row["Cost-effectiveness (DALY/$)"])
+            entries.append([entry, entry])
+
+    # The AIM cost-effectiveness estimates (which are sorted by DALYs/$
+    # descending) include one (relatively) super-ineffective outlier that's
+    # ~20x worse than the second-worst.
+    entries = entries[:-1]
+
+    fit_power_law("AIM", entries)
+
 
 def cost_effectiveness_with_error(true_alpha, estimate_error=0.2, num_samples=10000, show_output=True, show_plot=True):
     """
@@ -201,6 +225,7 @@ def sim_bias():
 
 
 # dcp3_power_law()
-sim_goodness_of_fit()
+aim_power_law()
+# sim_goodness_of_fit()
 # sim_goodness_of_fit_given_error()
 # sim_bias()

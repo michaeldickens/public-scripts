@@ -1,4 +1,4 @@
-This repository includes scripts too small for their own repos. Some of the scripts are not documented because they're too incomplete to do anything useful yet.
+This repository includes scripts too small for their own repos. Most script files contain documentation at the top of the file explaining what it does. Some of the scripts are not documented because they're too incomplete to do anything useful yet.
 
 * ai-progress
 Scripts to estimate the volatility of AI progress for my essay [[https://mdickens.me/2022/08/23/should_philanthropists_mission_hedge_ai_progress/][Philanthropists Probably Shouldn't Mission-Hedge AI Progress]].

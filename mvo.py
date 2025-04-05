@@ -302,7 +302,7 @@ class Optimizer:
         total_leverage_cost = max(0, sum(w for w in weights if w > 0) - scale) * self.leverage_cost
         return total_short_cost + total_leverage_cost
 
-    def neg_return(self, weights):
+    def neg_arithmetic_mean(self, weights):
         return -np.dot(weights, self.gmeans + self.stdevs**2 / 2)
 
     def neg_return_historical(self, historical_data):
@@ -398,8 +398,6 @@ class Optimizer:
         a given amount of leverage.
 
         max_stdev should be provided as a percentage.
-
-        TODO: This should take arithmetic means, not geometric means.
         '''
         assert(max_stdev is not None or target_leverage is not None)
 
@@ -441,7 +439,7 @@ class Optimizer:
                 lb=0, ub=max_stdev**2
             )
 
-            optimand = self.neg_return
+            optimand = self.neg_arithmetic_mean
         else:
             leverage_constraint = optimize.LinearConstraint(
                 [1 for _ in self.asset_classes],
@@ -791,7 +789,17 @@ def find_efficient_frontier():
 
 
 optimizer = Optimizer(
-    my_favorite_data,
+    dict(
+        asset_classes = [
+            "US", "intl",
+        ],
+        gmeans = [ 4,  3],
+        stdevs = [18, 18],
+        correlations = [
+            [ 1                ],
+            [ 0.8,  1          ],
+        ]
+    ),
     leverage_cost=2,
     short_cost=0.25,
 )
@@ -801,6 +809,6 @@ with open("data/historical-mvo.csv", "r") as fp:
     historical_data = [[float(x)/100 for x in row] for row in reader]
 
 
-
 # optimizer.mvo(max_stdev=30, historical_data=historical_data)
-optimizer.maximize_gmean(max_stdev=30, exogenous_portfolio_weight=0.99)
+# optimizer.maximize_gmean(max_stdev=30, exogenous_portfolio_weight=0.99)
+optimizer.mvo(target_leverage=1)
