@@ -281,13 +281,16 @@ def protest_effect(add_null_clones=False, p_fraud=0):
     blm_special_favors = Outcome(
         mean=0.242 * special_favors_scalar, stderr=0.360 * special_favors_scalar, n=2556
     )
+    womens_march_votes = Outcome(mean=4.95, stderr=1.28, n=2940)
     earth_day_favorability_1 = Outcome(5.72, 3.2, n=5223)  # n in Table 1
     civil_rights_violent = Outcome(mean=-5.54, stderr=2.48, n=2207)  # n in Table 3
 
-    vote_outcomes = [tea_party_votes, blm_votes, earth_day_favorability_1]
+    vote_outcomes = [tea_party_votes, blm_votes, womens_march_votes, earth_day_favorability_1]
+    vote_outcomes_rainfall_only = [tea_party_votes, blm_votes, earth_day_favorability_1]
     single_hypothesis_outcomes = [
         tea_party_votes,
         blm_votes,
+        womens_march_votes,
         earth_day_favorability_1,
         civil_rights_violent,
     ]
@@ -297,12 +300,15 @@ def protest_effect(add_null_clones=False, p_fraud=0):
         earth_day_favorability_1,
     ]
 
-    print("Protest Effects – Vote Share")
+    print("Protest Effects – Primary Outcomes")
     print_stats(vote_outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
     print("Protest Effects – Single Hypothesis")
     print_stats(single_hypothesis_outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
     print("Protest Effects – Favorability")
     print_stats(favorability_outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
+
+    diff = check_difference(pooled_outcome(vote_outcomes)[0], civil_rights_violent)
+    print(f"Nonviolent vs. Violent Difference: p-value {diff.pval:.4g}, likelihood ratio {diff.likelihood_ratio:.4g}")
 
 
 def get_digit_counts(digits):
@@ -429,6 +435,6 @@ def fraud_checks():
     digit_fraud_check(womens_march_first_digits, womens_march_last_digits)
 
 
-vote_share_per_protester(add_null_clones=False)
-protest_effect(add_null_clones=False)
+vote_share_per_protester(add_null_clones=True)
+protest_effect(add_null_clones=True)
 # fraud_checks()
