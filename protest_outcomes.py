@@ -169,13 +169,15 @@ def print_stats_with_fraud(outcomes, p_fraud):
 
 
 def print_stats(
-    outcomes, add_null_clones=False, additional_unpublished_studies=0, p_fraud=0
+        name, outcomes, add_null_clones=False, additional_unpublished_studies=0, p_fraud=0
 ):
     """
     Print the results of a meta-analysis.
 
     Parameters:
     -----------
+    name : str
+        Name of the pooled sample.
     outcomes : array-like
         Outcome objects from each experiment
     add_null_clones : bool, optional
@@ -205,15 +207,9 @@ def print_stats(
         return print_stats_with_fraud(outcomes, p_fraud)
 
     result, tau = pooled_outcome(outcomes)
+    p_negative = 1 - stats.norm.cdf(result.mean / tau) if tau > 0 else 0
 
-    print(f"\tMean: {result.mean:.2f}")
-    print(f"\tStandard Error: {result.stderr:.2f}")
-    print(f"\tp-value: {result.pval:.4g}")
-    print(f"\tlikelihood ratio: {result.likelihood_ratio:.4g}")
-    p_backfire = 1 - stats.norm.cdf(result.mean / tau) if tau > 1e-10 else 0
-    print(f"\timplied P(protest backfires): {p_backfire:.4g}")
-
-    print()
+    print(f"| {name} | {result.mean:.2f} | {result.stderr:.2f} | {round_pval(result.pval):.3g} | {np.round(result.likelihood_ratio, 3):.3g} | {np.round(p_negative, 3):.3g} |")
 
 
 def check_difference(base_outcome, alt_outcome):
@@ -249,12 +245,18 @@ def vote_share_per_protester(add_null_clones=False, p_fraud=0):
     is 50%, then vote share per protester is 10 / 0.5 = 20.
     """
     tea_party = Outcome(mean=18.81, stderr=7.85, n=2758)
-    blm = Outcome(mean=3.3, stderr=0.6, n=3053)
-    womens_march = Outcome(mean=9.62, stderr=3.44, n=2936)
+    blm_main = Outcome(mean=3.3, stderr=0.6, n=3053)  # main result
+
+    # Robustness check from Table A2, Model 2, chosen because it has the
+    # smallest t-stat.
+    blm = Outcome(mean=2.5, stderr=0.7, n=3053)
+
+    # Standard error from Table A.8, Panel B – distance cutoff 50 km. This was
+    # the largest standard error out of the three calculations.
+    womens_march = Outcome(mean=9.62, stderr=4.47, n=2936)
 
     outcomes = [tea_party, blm, womens_march]
-    print("Vote Share per Protester")
-    print_stats(outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
+    print_stats("Vote Share Per Protester", outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
 
 
 def protest_effect(add_null_clones=False, p_fraud=0):
@@ -277,7 +279,12 @@ def protest_effect(add_null_clones=False, p_fraud=0):
 
     tea_party_votes = Outcome(mean=1.55, stderr=0.69, n=2758)
     tea_party_favorability = Outcome(mean=5.7, stderr=2.5, n=2758)
-    blm_votes = Outcome(mean=2.7, stderr=1.2, n=3053)
+    blm_votes_main = Outcome(mean=2.7, stderr=1.2, n=3053)
+
+    # Robustness check from Table A2, Model 2, chosen because it has the
+    # smallest t-stat.
+    blm_votes = Outcome(mean=1.5, stderr=0.8, n=3053)
+
     blm_special_favors = Outcome(
         mean=0.242 * special_favors_scalar, stderr=0.360 * special_favors_scalar, n=2556
     )
@@ -286,7 +293,7 @@ def protest_effect(add_null_clones=False, p_fraud=0):
     civil_rights_violent = Outcome(mean=-5.54, stderr=2.48, n=2207)  # n in Table 3
 
     vote_outcomes = [tea_party_votes, blm_votes, womens_march_votes, earth_day_favorability_1]
-    vote_outcomes_rainfall_only = [tea_party_votes, blm_votes, earth_day_favorability_1]
+    vote_outcomes_rain_only = [tea_party_votes, blm_votes, earth_day_favorability_1]
     single_hypothesis_outcomes = [
         tea_party_votes,
         blm_votes,
@@ -300,12 +307,10 @@ def protest_effect(add_null_clones=False, p_fraud=0):
         earth_day_favorability_1,
     ]
 
-    print("Protest Effects – Primary Outcomes")
-    print_stats(vote_outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
-    print("Protest Effects – Single Hypothesis")
-    print_stats(single_hypothesis_outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
-    print("Protest Effects – Favorability")
-    print_stats(favorability_outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
+    print_stats("Primary Outcomes", vote_outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
+    print_stats("Primary Outcomes (Rain Only)", vote_outcomes_rain_only, add_null_clones=add_null_clones, p_fraud=p_fraud)
+    print_stats("Single Hypothesis", single_hypothesis_outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
+    print_stats("Favorability", favorability_outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
 
     diff = check_difference(pooled_outcome(vote_outcomes)[0], civil_rights_violent)
     print(f"Nonviolent vs. Violent Difference: p-value {diff.pval:.4g}, likelihood ratio {diff.likelihood_ratio:.4g}")
@@ -435,6 +440,10 @@ def fraud_checks():
     digit_fraud_check(womens_march_first_digits, womens_march_last_digits)
 
 
+print("""
+| Outcomes | Mean | Std Err | p-value  | likelihood ratio | P(negative effect) |
+|----------|------|---------|----------|------------------|--------------------|
+""")
 vote_share_per_protester(add_null_clones=True)
 protest_effect(add_null_clones=True)
 # fraud_checks()
