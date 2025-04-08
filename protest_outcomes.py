@@ -85,7 +85,27 @@ def get_digit_counts(digits):
     return np.array(digit_counts)
 
 
-def digit_fraud_check(first_digits, last_digits):
+def digit_fraud_check(first_digits_str, last_digits_str):
+    """
+    Check numbers for fraud using two principles:
+
+    1. First digits should follow Benford's law.
+    2. Last digits should be uniformly distributed.
+
+    Additionally, we check the power of the tests by reversing the first and
+    last digits. If the test is powerful then these "power checks" should
+    yield low p-values.
+
+    Parameters:
+    -----------
+    first_digits_str : str
+        String of first digits to check.
+    last_digits_str : str
+        String of last digits to check.
+    """
+    first_digits = [int(x) for x in first_digits_str]
+    last_digits = [int(x) for x in last_digits_str]
+
     # test that the first digits follow Benford's law
     benford_frequencies = np.array(
         [0.301, 0.176, 0.125, 0.097, 0.079, 0.067, 0.058, 0.051, 0.046]
@@ -131,16 +151,13 @@ def fraud_checks():
     # table even if you were doing fraud. Last digits additionally include R^2
     # for Tables V and VII, but not IV and VI due to insufficient significant
     # figures (= last digit is less random).
-    tea_party_first_digits = [
-        int(x) for x in ("739362723152521362131413141617161921413131214693")
-    ]
-    tea_party_last_digits = [
-        int(x)
-        for x in (
-            "7012574723144508757661805664377440914534591528277"
-            "168111059944492134425201602"
-        )
-    ]
+    tea_party_first_digits = (
+        "739362723152521362131413141617161921413131214693"
+    )
+    tea_party_last_digits = (
+        "7012574723144508757661805664377440914534591528277"
+        "168111059944492134425201602"
+    )
     print("Tea Party:")
     digit_fraud_check(tea_party_first_digits, tea_party_last_digits)
 
@@ -148,22 +165,16 @@ def fraud_checks():
     # Attendees/Population, Rain prob., lambda, rho; mean and standard error;
     # Model 1 only because model results are correlated which could create a
     # false positive.
-    blm_first_digits = [
-        int(x)
-        for x in (
-            "362124514615413145123551361421314"
-            "612345938135151461241717121824252"
-            "23451852332727"
-        )
-    ]
-    blm_last_digits = [
-        int(x)
-        for x in (
-            "367224169544335656078816348341174"
-            "415826853445139057678700767513320"
-            "471139986458"
-        )
-    ]
+    blm_first_digits = (
+        "362124514615413145123551361421314"
+        "612345938135151461241717121824252"
+        "23451852332727"
+    )
+    blm_last_digits = (
+        "367224169544335656078816348341174"
+        "415826853445139057678700767513320"
+        "471139986458"
+    )
     print("\nBLM:")
     digit_fraud_check(blm_first_digits, blm_last_digits)
 
@@ -171,41 +182,29 @@ def fraud_checks():
     # indicator, Rainfall, LASSO-chosen weather variable, Avg. dependent
     # variable (when distinct); mean and standard error. Last digits
     # additionally include R^2.
-    womens_march_first_digits = [
-        int(x)
-        for x in (
-            "1312443151415182931515951316245512321271157524137"
-            "21951755257641286111724214318413542242"
-        )
-    ]
-    womens_march_last_digits = [
-        int(x)
-        for x in (
-            "8048373912089525800172408068195060027574141808976"
-            "1984724661710603343914312846864339435626455"
-        )
-    ]
+    womens_march_first_digits = (
+        "1312443151415182931515951316245512321271157524137"
+        "21951755257641286111724214318413542242"
+    )
+    womens_march_last_digits = (
+        "8048373912089525800172408068195060027574141808976"
+        "1984724661710603343914312846864339435626455"
+    )
     print("\nWomen's March:")
     digit_fraud_check(womens_march_first_digits, womens_march_last_digits)
 
     # Using numbers from Table 2, 3, 4, 5; all rows and columns; mean and standard
     # error. First digits for Tables 3 & 4 use only first row and first 2 columns
     # due to high correlations.
-    earth_day_first_digits = [
-        int(x)
-        for x in (
-            "4283539453836494127212839283241449312931"
-            "31512141211363846442856316135614781827"
-        )
-    ]
-    earth_day_last_digits = [
-        int(x)
-        for x in (
-            "6242666222987327973244462731171429669487"
-            "084150525823229487426148115926595823713243879448"
-            "488615471833970284823099967900"
-        )
-    ]
+    earth_day_first_digits = (
+        "4283539453836494127212839283241449312931"
+        "31512141211363846442856316135614781827"
+    )
+    earth_day_last_digits = (
+        "6242666222987327973244462731171429669487"
+        "084150525823229487426148115926595823713243879448"
+        "488615471833970284823099967900"
+    )
     print("\nEarth Day:")
     digit_fraud_check(earth_day_first_digits, earth_day_last_digits)
 
