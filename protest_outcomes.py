@@ -65,6 +65,151 @@ def round_pval(pval):
     return math.ceil(pval * 1000) / 1000
 
 
+def get_digit_counts(digits):
+    """
+    Count the number of occurrences of each digit in a list.
+
+    Parameters:
+    -----------
+    digits : list of int
+        List of digits (0-9) to count.
+
+    Returns:
+    --------
+    np.ndarray
+        Array where index i gives the number of occurrences of digit i.
+    """
+    digit_counts = [0 for _ in range(10)]
+    for digit in digits:
+        digit_counts[digit] += 1
+    return np.array(digit_counts)
+
+
+def digit_fraud_check(first_digits, last_digits):
+    # test that the first digits follow Benford's law
+    benford_frequencies = np.array(
+        [0.301, 0.176, 0.125, 0.097, 0.079, 0.067, 0.058, 0.051, 0.046]
+    )
+    benford_counts = benford_frequencies * len(first_digits)
+    first_digit_counts = get_digit_counts(first_digits)[1:]
+    res = stats.chisquare(first_digit_counts, benford_counts)
+    pval = round_pval(res.pvalue)
+    print(f"\tFirst-digit Benford's Law p-value: {pval:.3f}")
+
+    # test that last digits follow a uniform distribution
+    last_digit_counts = get_digit_counts(last_digits)
+    res = stats.chisquare(last_digit_counts)
+    pval = round_pval(res.pvalue)
+    print(f"\tLast-digit uniformity p-value:     {pval:.3f}")
+
+    # As a power check, test what p-values we get if we reverse the first and
+    # last digits. We want to see that the first digits do *not* follow a
+    # uniform distribution and the last digits do *not* follow Benford's law.
+    # If we get high p-values, that means the fraud check is underpowered.
+
+    # remove all zeros
+    filtered_last_digits = [x for x in last_digits if x != 0]
+    reverse_benford_counts = benford_frequencies * len(filtered_last_digits)
+    reverse_last_digit_counts = get_digit_counts(filtered_last_digits)[1:]
+    last_pval = round_pval(
+        stats.chisquare(reverse_last_digit_counts, reverse_benford_counts).pvalue
+    )
+    first_pval = round_pval(
+        stats.chisquare(
+            first_digit_counts, [len(first_digits) / 9 for _ in range(9)]
+        ).pvalue
+    )
+
+    print(f"\tPower check p-values:              {first_pval:.3f}, {last_pval:.3f}")
+
+
+def fraud_checks():
+    # Using numbers from Table IV, V, VI, VII; all columns; Rainy Protest, % of
+    # Pop. Protesting Scaling; mean and standard error. First digits Table V
+    # only include columns (1, 2, 7, 8) due to correlations between survey
+    # answers. Not including Table III because I doubt you'd fabricate that
+    # table even if you were doing fraud. Last digits additionally include R^2
+    # for Tables V and VII, but not IV and VI due to insufficient significant
+    # figures (= last digit is less random).
+    tea_party_first_digits = [
+        int(x) for x in ("739362723152521362131413141617161921413131214693")
+    ]
+    tea_party_last_digits = [
+        int(x)
+        for x in (
+            "7012574723144508757661805664377440914534591528277"
+            "168111059944492134425201602"
+        )
+    ]
+    print("Tea Party:")
+    digit_fraud_check(tea_party_first_digits, tea_party_last_digits)
+
+    # Using numbers from Tables 2, 3, 4; all panels; line items
+    # Attendees/Population, Rain prob., lambda, rho; mean and standard error;
+    # Model 1 only because model results are correlated which could create a
+    # false positive.
+    blm_first_digits = [
+        int(x)
+        for x in (
+            "362124514615413145123551361421314"
+            "612345938135151461241717121824252"
+            "23451852332727"
+        )
+    ]
+    blm_last_digits = [
+        int(x)
+        for x in (
+            "367224169544335656078816348341174"
+            "415826853445139057678700767513320"
+            "471139986458"
+        )
+    ]
+    print("\nBLM:")
+    digit_fraud_check(blm_first_digits, blm_last_digits)
+
+    # Using numbers from Table 2, 3, 4, 5; Panel A, B, C, Rainy protest
+    # indicator, Rainfall, LASSO-chosen weather variable, Avg. dependent
+    # variable (when distinct); mean and standard error. Last digits
+    # additionally include R^2.
+    womens_march_first_digits = [
+        int(x)
+        for x in (
+            "1312443151415182931515951316245512321271157524137"
+            "21951755257641286111724214318413542242"
+        )
+    ]
+    womens_march_last_digits = [
+        int(x)
+        for x in (
+            "8048373912089525800172408068195060027574141808976"
+            "1984724661710603343914312846864339435626455"
+        )
+    ]
+    print("\nWomen's March:")
+    digit_fraud_check(womens_march_first_digits, womens_march_last_digits)
+
+    # Using numbers from Table 2, 3, 4, 5; all rows and columns; mean and standard
+    # error. First digits for Tables 3 & 4 use only first row and first 2 columns
+    # due to high correlations.
+    earth_day_first_digits = [
+        int(x)
+        for x in (
+            "4283539453836494127212839283241449312931"
+            "31512141211363846442856316135614781827"
+        )
+    ]
+    earth_day_last_digits = [
+        int(x)
+        for x in (
+            "6242666222987327973244462731171429669487"
+            "084150525823229487426148115926595823713243879448"
+            "488615471833970284823099967900"
+        )
+    ]
+    print("\nEarth Day:")
+    digit_fraud_check(earth_day_first_digits, earth_day_last_digits)
+
+
 def pooled_outcome(outcomes):
     """
     Calculate pooled outcome using a random-effects model.
@@ -209,7 +354,7 @@ def print_stats(
     result, tau = pooled_outcome(outcomes)
     p_negative = 1 - stats.norm.cdf(result.mean / tau) if tau > 0 else 0
 
-    print(f"| {name} | {result.mean:.2f} | {result.stderr:.2f} | {round_pval(result.pval):.3g} | {np.round(result.likelihood_ratio, 3):.3g} | {np.round(p_negative, 3):.3g} |")
+    print(f"| {name} | {result.mean:.2f} | {result.stderr:.2f} | {np.round(result.likelihood_ratio, 3):.3g} | {round_pval(result.pval):.3g} | {np.round(p_negative, 3):.3g} |")
 
 
 def check_difference(base_outcome, alt_outcome):
@@ -251,11 +396,15 @@ def vote_share_per_protester(add_null_clones=False, p_fraud=0):
     # smallest t-stat.
     blm = Outcome(mean=2.5, stderr=0.7, n=3053)
 
+    # ignoring spatial autocorrelation
+    # blm = Outcome(mean=11.9, stderr=2.9, n=3053)
+
     # Standard error from Table A.8, Panel B – distance cutoff 50 km. This was
     # the largest standard error out of the three calculations.
     womens_march = Outcome(mean=9.62, stderr=4.47, n=2936)
 
-    outcomes = [tea_party, blm, womens_march]
+    # outcomes = [tea_party, blm, womens_march]
+    outcomes = [tea_party, womens_march]
     print_stats("Vote Share Per Protester", outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
 
 
@@ -292,18 +441,20 @@ def protest_effect(add_null_clones=False, p_fraud=0):
     earth_day_favorability_1 = Outcome(5.72, 3.2, n=5223)  # n in Table 1
     civil_rights_violent = Outcome(mean=-5.54, stderr=2.48, n=2207)  # n in Table 3
 
-    vote_outcomes = [tea_party_votes, blm_votes, womens_march_votes, earth_day_favorability_1]
-    vote_outcomes_rain_only = [tea_party_votes, blm_votes, earth_day_favorability_1]
+    # vote_outcomes = [tea_party_votes, blm_votes, womens_march_votes, earth_day_favorability_1]
+    # vote_outcomes_rain_only = [tea_party_votes, blm_votes, earth_day_favorability_1]
+    vote_outcomes = [tea_party_votes, womens_march_votes, earth_day_favorability_1]
+    vote_outcomes_rain_only = [tea_party_votes, earth_day_favorability_1]
     single_hypothesis_outcomes = [
         tea_party_votes,
-        blm_votes,
+        # blm_votes,
         womens_march_votes,
         earth_day_favorability_1,
         civil_rights_violent,
     ]
     favorability_outcomes = [
         tea_party_favorability,
-        blm_special_favors,
+        # blm_special_favors,
         earth_day_favorability_1,
     ]
 
@@ -313,137 +464,20 @@ def protest_effect(add_null_clones=False, p_fraud=0):
     print_stats("Favorability", favorability_outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
 
     diff = check_difference(pooled_outcome(vote_outcomes)[0], civil_rights_violent)
-    print(f"Nonviolent vs. Violent Difference: p-value {diff.pval:.4g}, likelihood ratio {diff.likelihood_ratio:.4g}")
+    print(f"\nNonviolent vs. Violent Difference: p-value {diff.pval:.4g}, likelihood ratio {diff.likelihood_ratio:.4g}")
 
 
-def get_digit_counts(digits):
-    """
-    Count the number of occurrences of each digit in a list.
-
-    Parameters:
-    -----------
-    digits : list of int
-        List of digits (0-9) to count.
-
-    Returns:
-    --------
-    np.ndarray
-        Array where index i gives the number of occurrences of digit i.
-    """
-    digit_counts = [0 for _ in range(10)]
-    for digit in digits:
-        digit_counts[digit] += 1
-    return np.array(digit_counts)
-
-
-def digit_fraud_check(first_digits, last_digits):
-    # test that the first digits follow Benford's law
-    benford_frequencies = np.array(
-        [0.301, 0.176, 0.125, 0.097, 0.079, 0.067, 0.058, 0.051, 0.046]
-    )
-    benford_counts = benford_frequencies * len(first_digits)
-    first_digit_counts = get_digit_counts(first_digits)[1:]
-    res = stats.chisquare(first_digit_counts, benford_counts)
-    pval = round_pval(res.pvalue)
-    print(f"\tFirst-digit Benford's Law p-value: {pval:.3f}")
-
-    # test that last digits follow a uniform distribution
-    last_digit_counts = get_digit_counts(last_digits)
-    res = stats.chisquare(last_digit_counts)
-    pval = round_pval(res.pvalue)
-    print(f"\tLast-digit uniformity p-value:     {pval:.3f}")
-
-    # As a power check, test what p-values we get if we reverse the first and
-    # last digits. We want to see that the first digits do *not* follow a
-    # uniform distribution and the last digits do *not* follow Benford's law.
-    # If we get high p-values, that means the fraud check is underpowered.
-
-    # remove all zeros
-    filtered_last_digits = [x for x in last_digits if x != 0]
-    reverse_benford_counts = benford_frequencies * len(filtered_last_digits)
-    reverse_last_digit_counts = get_digit_counts(filtered_last_digits)[1:]
-    last_pval = round_pval(
-        stats.chisquare(reverse_last_digit_counts, reverse_benford_counts).pvalue
-    )
-    first_pval = round_pval(
-        stats.chisquare(
-            first_digit_counts, [len(first_digits) / 9 for _ in range(9)]
-        ).pvalue
-    )
-
-    print(f"\tPower check p-values:             {first_pval:.3f}, {last_pval:.3f}")
-
-
-def fraud_checks():
-    # Using numbers from Table IV, V, VI, VII; all columns; Rainy Protest, % of
-    # Pop. Protesting Scaling; mean and standard error. First digits Table V
-    # only include columns (1, 2, 7, 8) due to correlations between survey
-    # answers. Not including Table III because I doubt you'd fabricate that
-    # table even if you were doing fraud. Last digits additionally include R^2
-    # for Tables V and VII, but not IV and VI due to insufficient significant
-    # figures (= last digit is less random).
-    tea_party_first_digits = [
-        int(x) for x in ("739362723152521362131413141617161921413131214693")
-    ]
-    tea_party_last_digits = [
-        int(x)
-        for x in (
-            "7012574723144508757661805664377440914534591528277"
-            "168111059944492134425201602"
-        )
-    ]
-    print("Tea Party:")
-    digit_fraud_check(tea_party_first_digits, tea_party_last_digits)
-
-    # Using numbers from Tables 2, 3, 4; all panels; line items
-    # Attendees/Population, Rain prob., lambda, rho; mean and standard error;
-    # Model 1 only because model results are correlated which could create a
-    # false positive.
-    blm_first_digits = [
-        int(x)
-        for x in (
-            "362124514615413145123551361421314"
-            "612345938135151461241717121824252"
-            "23451852332727"
-        )
-    ]
-    blm_last_digits = [
-        int(x)
-        for x in (
-            "367224169544335656078816348341174"
-            "415826853445139057678700767513320"
-            "471139986458"
-        )
-    ]
-    print("\nBLM:")
-    digit_fraud_check(blm_first_digits, blm_last_digits)
-
-    # Using numbers from Table 2, 3, 4, 5; Panel A, B, C, Rainy protest
-    # indicator, Rainfall, LASSO-chosen weather variable, Avg. dependent
-    # variable (when distinct); mean and standard error. Last digits
-    # additionally include R^2.
-    womens_march_first_digits = [
-        int(x)
-        for x in (
-            "1312443151415182931515951316245512321271157524137"
-            "21951755257641286111724214318413542242"
-        )
-    ]
-    womens_march_last_digits = [
-        int(x)
-        for x in (
-            "8048373912089525800172408068195060027574141808976"
-            "1984724661710603343914312846864339435626455"
-        )
-    ]
-    print("\nWomen's March:")
-    digit_fraud_check(womens_march_first_digits, womens_march_last_digits)
-
+fraud_checks()
 
 print("""
-| Outcomes | Mean | Std Err | p-value  | likelihood ratio | P(negative effect) |
-|----------|------|---------|----------|------------------|--------------------|
-""")
+| Outcomes | Mean | Std Err | likelihood ratio | p-value | P(negative effect) |
+|----------|------|---------|------------------|---------|--------------------|""")
+vote_share_per_protester(add_null_clones=False)
+protest_effect(add_null_clones=False)
+print()
+
+print("""
+| Outcomes | Mean | Std Err | likelihood ratio | p-value | P(negative effect) |
+|----------|------|---------|------------------|---------|--------------------|""")
 vote_share_per_protester(add_null_clones=True)
 protest_effect(add_null_clones=True)
-# fraud_checks()
