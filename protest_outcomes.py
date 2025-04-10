@@ -27,6 +27,7 @@ Public Opinion and Voting. https://doi.org/10.1017/S000305542000009X
 """
 
 from collections import namedtuple
+from matplotlib import pyplot as plt
 from scipy import stats
 import math
 import numpy as np
@@ -65,7 +66,73 @@ def round_pval(pval):
     return math.ceil(pval * 1000) / 1000
 
 
+def publication_bias_test(name, means, stderrs, funnel_plot=False):
+    """
+    Test for publication bias using the Egger's regression test and
+    Kendall's tau test.
+
+    Parameters:
+    -----------
+    means : array-like
+        Means of the outcomes.
+    stderrs : array-like
+        Standard errors of the outcomes.
+
+    Returns:
+    --------
+    float
+        p-value for the Egger's regression test.
+
+    """
+    precisions = 1 / np.array(stderrs)
+    slope, intercept, r, p_value, std_err = stats.linregress(precisions, means)
+
+    mean_ranks = np.argsort(means)
+    precision_ranks = np.argsort(precisions)
+    kendall_tau = stats.kendalltau(precision_ranks, mean_ranks)
+
+    print(f"\n{name} Publication Bias Tests:")
+    print(f"\tEgger's regression: slope = {np.round(slope, 3)}, r = {np.round(r, 3)}, p < {round_pval(p_value):.3f}")
+    print(f"\tKendall's tau test: tau = {kendall_tau.statistic:.2f}, p < {round_pval(kendall_tau.pvalue):.3f}")
+
+    if funnel_plot:
+        plt.scatter(means, -np.array(stderrs))
+        plt.xlabel("Mean")
+        plt.ylabel("Standard Error")
+        plt.title(f"Funnel Plot: {name}")
+        plt.axhline(0, color="red", linestyle="--")
+        plt.axvline(0, color="red", linestyle="--")
+        plt.show()
+
+
+def orazani_publication_bias():
+    """
+    Test for publication bias in the study results from the
+    Orazani et al. (2021) meta-analysis.
+    """
+    outcomes = [
+        (0.36, 0.20),
+        (0.43, 0.17),
+        (0.41, 0.12),
+        (0.33, 0.10),
+        (0.50, 0.14),
+        (0.04, 0.18),
+        (0.22, 0.23),
+        (0.39, 0.27),
+        (0.41, 0.28),
+        (0.63, 0.35),
+        (-0.20, 0.19),
+        (-0.19, 0.34),
+        (0.32, 0.06),
+        (0.08, 0.18),
+        (0.02, 0.18),
+        (-0.01, 0.15),
+    ]
+    publication_bias_test("Orazani et al. (2021)", *zip(*outcomes))
+
+
 def get_digit_counts(digits):
+
     """
     Count the number of occurrences of each digit in a list.
 
@@ -254,6 +321,12 @@ def pooled_outcome(outcomes):
     C = np.sum(weights_fixed) - np.sum(weights_fixed**2) / np.sum(weights_fixed)
     tau_squared = (Q - df) / C
 
+    # Calculate I^2 (study heterogeneity).
+    I_squared = (
+        (Q - df) / Q
+        if Q > df else 0
+    )
+
     if tau_squared < 0:
         # The effect sizes look similar enough that we should use a
         # fixed-effects model, which is equivalent to a random-effects model
@@ -269,7 +342,7 @@ def pooled_outcome(outcomes):
     mean_random = np.sum(weights * means) / np.sum(weights)
     stderr_random = 1 / np.sqrt(np.sum(weights))
 
-    return Outcome(mean_random, stderr_random, sum(ns)), tau
+    return Outcome(mean_random, stderr_random, sum(ns)), tau, I_squared
 
 
 def print_stats_with_fraud(outcomes, p_fraud):
@@ -350,10 +423,10 @@ def print_stats(
     if p_fraud > 0:
         return print_stats_with_fraud(outcomes, p_fraud)
 
-    result, tau = pooled_outcome(outcomes)
+    result, tau, I_squared = pooled_outcome(outcomes)
     p_negative = 1 - stats.norm.cdf(result.mean / tau) if tau > 0 else 0
 
-    print(f"| {name} | {result.mean:.2f} | {result.stderr:.2f} | {np.round(result.likelihood_ratio, 3):.3g} | {round_pval(result.pval):.3g} | {np.round(p_negative, 3):.3g} |")
+    print(f"| {name} | {result.mean:.2f} | {result.stderr:.2f} | {np.round(result.likelihood_ratio, 3):.3g} | {round_pval(result.pval):.3g} | {np.round(100 * I_squared):.0f} | {np.round(p_negative, 3):.3g} |")
 
 
 def check_difference(base_outcome, alt_outcome):
@@ -469,14 +542,16 @@ def protest_effect(add_null_clones=False, p_fraud=0):
 fraud_checks()
 
 print("""
-| Outcomes | Mean | Std Err | likelihood ratio | p-value | P(negative effect) |
-|----------|------|---------|------------------|---------|--------------------|""")
+| Outcomes | Mean | Std Err | likelihood ratio | p-value | I^2 |P(negative effect) |
+|----------|------|---------|------------------|---------|-----|-------------------|""")
 vote_share_per_protester(add_null_clones=False)
 protest_effect(add_null_clones=False)
 print()
 
 print("""
-| Outcomes | Mean | Std Err | likelihood ratio | p-value | P(negative effect) |
-|----------|------|---------|------------------|---------|--------------------|""")
+| Outcomes | Mean | Std Err | likelihood ratio | p-value | I^2 | P(negative effect) |
+|----------|------|---------|------------------|---------|-----|--------------------|""")
 vote_share_per_protester(add_null_clones=True)
 protest_effect(add_null_clones=True)
+
+orazani_publication_bias()
