@@ -91,12 +91,12 @@ def publication_bias_test(name, means, stderrs, funnel_plot=False):
     precision_ranks = np.argsort(precisions)
     kendall_tau = stats.kendalltau(precision_ranks, mean_ranks)
 
-    print(f"\n{name} Publication Bias Tests:")
+    print(f"\n{name} publication bias tests:")
     print(
-        f"\tEgger's regression: slope = {np.round(slope, 3)}, r = {np.round(r, 3)}, p < {round_pval(p_value):.3f}"
+        f"\tEgger's regression: r = {np.round(r, 3)}, p < {round_pval(p_value):.3f}"
     )
     print(
-        f"\tKendall's tau test: tau = {kendall_tau.statistic:.2f}, p < {round_pval(kendall_tau.pvalue):.3f}"
+        f"\tKendall's tau test: p < {round_pval(kendall_tau.pvalue):.3f}"
     )
 
     if funnel_plot:
@@ -116,39 +116,46 @@ def orazani_publication_bias():
     """
     experimental_outcomes = [
         # Thomas & Louis (2014)
-        (0.36, 0.20),
-        (0.43, 0.17),
+        [0.36, 0.20, True],
+        [0.43, 0.17, True],
         # Feinberg, Willer & Kovacheff
-        (0.41, 0.12),
-        (0.33, 0.10),
-        (0.50, 0.14),
+        [0.41, 0.12, False],
+        [0.33, 0.10, False],
+        [0.50, 0.14, True],
         # Orazani & Leidner
-        (0.22, 0.23),
-        (0.39, 0.27),
-        (0.41, 0.28),
+        [0.22, 0.23, True],
+        [0.39, 0.27, True],
+        [0.41, 0.28, True],
         # Legget
-        (-0.20, 0.19),
-        (-0.19, 0.34),
+        [-0.20, 0.19, False],
+        [-0.19, 0.34, False],
         # Gutting
-        (0.32, 0.06),
+        [0.32, 0.06, False],
         # Shuman
-        (0.08, 0.18),
-        (0.02, 0.18),
-        (-0.01, 0.15),
+        [0.08, 0.18, False],
+        [0.02, 0.18, False],
+        [-0.01, 0.15, False],
     ]
     non_experimental_outcomes = [
         # Becker, Tausch, Spears & Christ
-        (0.04, 0.18),
+        [0.04, 0.18, True],
         # Orazani & Leidner
-        (0.63, 0.35),
+        [0.63, 0.35, True],
     ]
+
+    published_only = True
+    if published_only:
+        all_outcomes = np.array([x for x in experimental_outcomes + non_experimental_outcomes if x[2]]).transpose()
+        experimental_outcomes = np.array([x for x in experimental_outcomes if x[2]]).transpose()
+    else:
+        all_outcomes = np.array(experimental_outcomes + non_experimental_outcomes).transpose()
+        experimental_outcomes = np.array(experimental_outcomes).transpose()
+
     publication_bias_test(
-        "Orazani et al. (2021), experimental only (k = 14)",
-        *zip(*experimental_outcomes),
+        "Orazani et al. (2021), experimental only (k = 14)", *experimental_outcomes[:2]
     )
     publication_bias_test(
-        "Orazani et al. (2021), all (k = 16)",
-        *zip(*(experimental_outcomes + non_experimental_outcomes)),
+        "Orazani et al. (2021), all (k = 16)", *all_outcomes[:2]
     )
 
 
@@ -485,15 +492,19 @@ def vote_share_per_protester(add_null_clones=False, p_fraud=0):
     # smallest t-stat.
     blm = Outcome(mean=2.5, stderr=0.7, n=3053)
 
-    # ignoring spatial autocorrelation
-    # blm = Outcome(mean=11.9, stderr=2.9, n=3053)
+    # Table A3
+    blm_ignoring_spatial_autocorrelation = Outcome(mean=11.9, stderr=2.9, n=3053)
 
     # Standard error from Table A.8, Panel B – distance cutoff 50 km. This was
     # the largest standard error out of the three calculations.
     womens_march = Outcome(mean=9.62, stderr=4.47, n=2936)
 
-    # outcomes = [tea_party, blm, womens_march]
-    outcomes = [tea_party, womens_march]
+    outcomes = [
+        tea_party,
+        # blm,
+        # blm_ignoring_spatial_autocorrelation,
+        womens_march
+    ]
     print_stats(
         "Vote Share Per Protester",
         outcomes,
@@ -528,6 +539,9 @@ def protest_effect(add_null_clones=False, p_fraud=0):
     # smallest t-stat.
     blm_votes = Outcome(mean=1.5, stderr=0.8, n=3053)
 
+    # Table A3
+    blm_votes_ignoring_spatial_autocorrelation = Outcome(mean=10.5, stderr=3.2, n=3053)
+
     blm_special_favors = Outcome(
         mean=0.242 * special_favors_scalar, stderr=0.360 * special_favors_scalar, n=2556
     )
@@ -535,13 +549,23 @@ def protest_effect(add_null_clones=False, p_fraud=0):
     earth_day_favorability_1 = Outcome(5.72, 3.2, n=5223)  # n in Table 1
     civil_rights_violent = Outcome(mean=-5.54, stderr=2.48, n=2207)  # n in Table 3
 
-    # vote_outcomes = [tea_party_votes, blm_votes, womens_march_votes, earth_day_favorability_1]
-    # vote_outcomes_rain_only = [tea_party_votes, blm_votes, earth_day_favorability_1]
-    vote_outcomes = [tea_party_votes, womens_march_votes, earth_day_favorability_1]
-    vote_outcomes_rain_only = [tea_party_votes, earth_day_favorability_1]
+    vote_outcomes = [
+        tea_party_votes,
+        # blm_votes,
+        # blm_votes_ignoring_spatial_autocorrelation,
+        womens_march_votes,
+        earth_day_favorability_1
+    ]
+    vote_outcomes_rain_only = [
+        tea_party_votes,
+        # blm_votes,
+        # blm_votes_ignoring_spatial_autocorrelation,
+        earth_day_favorability_1
+    ]
     single_hypothesis_outcomes = [
         tea_party_votes,
         # blm_votes,
+        # blm_votes_ignoring_spatial_autocorrelation,
         womens_march_votes,
         earth_day_favorability_1,
         civil_rights_violent,
