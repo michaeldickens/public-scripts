@@ -92,8 +92,12 @@ def publication_bias_test(name, means, stderrs, funnel_plot=False):
     kendall_tau = stats.kendalltau(precision_ranks, mean_ranks)
 
     print(f"\n{name} Publication Bias Tests:")
-    print(f"\tEgger's regression: slope = {np.round(slope, 3)}, r = {np.round(r, 3)}, p < {round_pval(p_value):.3f}")
-    print(f"\tKendall's tau test: tau = {kendall_tau.statistic:.2f}, p < {round_pval(kendall_tau.pvalue):.3f}")
+    print(
+        f"\tEgger's regression: slope = {np.round(slope, 3)}, r = {np.round(r, 3)}, p < {round_pval(p_value):.3f}"
+    )
+    print(
+        f"\tKendall's tau test: tau = {kendall_tau.statistic:.2f}, p < {round_pval(kendall_tau.pvalue):.3f}"
+    )
 
     if funnel_plot:
         plt.scatter(means, -np.array(stderrs))
@@ -110,29 +114,45 @@ def orazani_publication_bias():
     Test for publication bias in the study results from the
     Orazani et al. (2021) meta-analysis.
     """
-    outcomes = [
+    experimental_outcomes = [
+        # Thomas & Louis (2014)
         (0.36, 0.20),
         (0.43, 0.17),
+        # Feinberg, Willer & Kovacheff
         (0.41, 0.12),
         (0.33, 0.10),
         (0.50, 0.14),
-        (0.04, 0.18),
+        # Orazani & Leidner
         (0.22, 0.23),
         (0.39, 0.27),
         (0.41, 0.28),
-        (0.63, 0.35),
+        # Legget
         (-0.20, 0.19),
         (-0.19, 0.34),
+        # Gutting
         (0.32, 0.06),
+        # Shuman
         (0.08, 0.18),
         (0.02, 0.18),
         (-0.01, 0.15),
     ]
-    publication_bias_test("Orazani et al. (2021)", *zip(*outcomes))
+    non_experimental_outcomes = [
+        # Becker, Tausch, Spears & Christ
+        (0.04, 0.18),
+        # Orazani & Leidner
+        (0.63, 0.35),
+    ]
+    publication_bias_test(
+        "Orazani et al. (2021), experimental only (k = 14)",
+        *zip(*experimental_outcomes),
+    )
+    publication_bias_test(
+        "Orazani et al. (2021), all (k = 16)",
+        *zip(*(experimental_outcomes + non_experimental_outcomes)),
+    )
 
 
 def get_digit_counts(digits):
-
     """
     Count the number of occurrences of each digit in a list.
 
@@ -218,9 +238,7 @@ def fraud_checks():
     # table even if you were doing fraud. Last digits additionally include R^2
     # for Tables V and VII, but not IV and VI due to insufficient significant
     # figures (= last digit is less random).
-    tea_party_first_digits = (
-        "739362723152521362131413141617161921413131214693"
-    )
+    tea_party_first_digits = "739362723152521362131413141617161921413131214693"
     tea_party_last_digits = (
         "7012574723144508757661805664377440914534591528277"
         "168111059944492134425201602"
@@ -322,10 +340,7 @@ def pooled_outcome(outcomes):
     tau_squared = (Q - df) / C
 
     # Calculate I^2 (study heterogeneity).
-    I_squared = (
-        (Q - df) / Q
-        if Q > df else 0
-    )
+    I_squared = (Q - df) / Q if Q > df else 0
 
     if tau_squared < 0:
         # The effect sizes look similar enough that we should use a
@@ -386,7 +401,7 @@ def print_stats_with_fraud(outcomes, p_fraud):
 
 
 def print_stats(
-        name, outcomes, add_null_clones=False, additional_unpublished_studies=0, p_fraud=0
+    name, outcomes, add_null_clones=False, additional_unpublished_studies=0, p_fraud=0
 ):
     """
     Print the results of a meta-analysis.
@@ -426,7 +441,9 @@ def print_stats(
     result, tau, I_squared = pooled_outcome(outcomes)
     p_negative = 1 - stats.norm.cdf(result.mean / tau) if tau > 0 else 0
 
-    print(f"| {name} | {result.mean:.2f} | {result.stderr:.2f} | {np.round(result.likelihood_ratio, 3):.3g} | {round_pval(result.pval):.3g} | {np.round(100 * I_squared):.0f} | {np.round(p_negative, 3):.3g} |")
+    print(
+        f"| {name} | {result.mean:.2f} | {result.stderr:.2f} | {np.round(result.likelihood_ratio, 3):.3g} | {round_pval(result.pval):.3g} | {np.round(100 * I_squared):.0f} | {np.round(p_negative, 3):.3g} |"
+    )
 
 
 def check_difference(base_outcome, alt_outcome):
@@ -477,7 +494,12 @@ def vote_share_per_protester(add_null_clones=False, p_fraud=0):
 
     # outcomes = [tea_party, blm, womens_march]
     outcomes = [tea_party, womens_march]
-    print_stats("Vote Share Per Protester", outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
+    print_stats(
+        "Vote Share Per Protester",
+        outcomes,
+        add_null_clones=add_null_clones,
+        p_fraud=p_fraud,
+    )
 
 
 def protest_effect(add_null_clones=False, p_fraud=0):
@@ -530,27 +552,53 @@ def protest_effect(add_null_clones=False, p_fraud=0):
         earth_day_favorability_1,
     ]
 
-    print_stats("Primary Outcomes", vote_outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
-    print_stats("Primary Outcomes (Rain Only)", vote_outcomes_rain_only, add_null_clones=add_null_clones, p_fraud=p_fraud)
-    print_stats("Single Hypothesis", single_hypothesis_outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
-    print_stats("Favorability", favorability_outcomes, add_null_clones=add_null_clones, p_fraud=p_fraud)
+    print_stats(
+        "Primary Outcomes",
+        vote_outcomes,
+        add_null_clones=add_null_clones,
+        p_fraud=p_fraud,
+    )
+    print_stats(
+        "Primary Outcomes (Rain Only)",
+        vote_outcomes_rain_only,
+        add_null_clones=add_null_clones,
+        p_fraud=p_fraud,
+    )
+    print_stats(
+        "Single Hypothesis",
+        single_hypothesis_outcomes,
+        add_null_clones=add_null_clones,
+        p_fraud=p_fraud,
+    )
+    print_stats(
+        "Favorability",
+        favorability_outcomes,
+        add_null_clones=add_null_clones,
+        p_fraud=p_fraud,
+    )
 
     diff = check_difference(pooled_outcome(vote_outcomes)[0], civil_rights_violent)
-    print(f"\nNonviolent vs. Violent Difference: p-value {diff.pval:.4g}, likelihood ratio {diff.likelihood_ratio:.4g}")
+    print(
+        f"\nNonviolent vs. Violent Difference: p-value {diff.pval:.4g}, likelihood ratio {diff.likelihood_ratio:.4g}"
+    )
 
 
 fraud_checks()
 
-print("""
+print(
+    """
 | Outcomes | Mean | Std Err | likelihood ratio | p-value | I^2 |P(negative effect) |
-|----------|------|---------|------------------|---------|-----|-------------------|""")
+|----------|------|---------|------------------|---------|-----|-------------------|"""
+)
 vote_share_per_protester(add_null_clones=False)
 protest_effect(add_null_clones=False)
 print()
 
-print("""
+print(
+    """
 | Outcomes | Mean | Std Err | likelihood ratio | p-value | I^2 | P(negative effect) |
-|----------|------|---------|------------------|---------|-----|--------------------|""")
+|----------|------|---------|------------------|---------|-----|--------------------|"""
+)
 vote_share_per_protester(add_null_clones=True)
 protest_effect(add_null_clones=True)
 
