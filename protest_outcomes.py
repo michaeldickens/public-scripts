@@ -109,10 +109,12 @@ def publication_bias_test(name, means, stderrs, funnel_plot=False):
         plt.show()
 
 
-def orazani_publication_bias():
-    """
-    Test for publication bias in the study results from the
-    Orazani et al. (2021) meta-analysis.
+def orazani_publication_bias(published_only=False):
+    """Test for publication bias in the study results from
+
+    Orazani, N., Tabri, N., Wohl, M. J. A., & Leidner, B. (2021). Social
+    movement strategy (nonviolent vs. violent) and the garnering of third-party
+    support: A meta-analysis.
     """
     experimental_outcomes = [
         # Thomas & Louis (2014)
@@ -143,7 +145,6 @@ def orazani_publication_bias():
         [0.63, 0.35, True],
     ]
 
-    published_only = True
     if published_only:
         all_outcomes = np.array([x for x in experimental_outcomes + non_experimental_outcomes if x[2]]).transpose()
         experimental_outcomes = np.array([x for x in experimental_outcomes if x[2]]).transpose()
@@ -300,7 +301,6 @@ def fraud_checks():
     print("\nEarth Day:")
     digit_fraud_check(earth_day_first_digits, earth_day_last_digits)
 
-
 def pooled_outcome(outcomes):
     """
     Calculate pooled outcome using a random-effects model.
@@ -330,13 +330,12 @@ def pooled_outcome(outcomes):
         total sample size
 
     """
+    df = len(outcomes) - 1
     means = np.asarray([x.mean for x in outcomes])
     stderrs = np.asarray([x.stderr for x in outcomes])
-    ns = np.asarray([x.n for x in outcomes])
-    df = len(outcomes) - 1
 
     # Calculate weights as if using a fixed-effects model.
-    weights_fixed = np.asarray([1 / x.stderr**2 for x in outcomes])
+    weights_fixed = 1 / stderrs**2
 
     # Calculate fixed-effect weighted mean.
     mean_fixed = np.sum(weights_fixed * means) / np.sum(weights_fixed)
@@ -358,13 +357,13 @@ def pooled_outcome(outcomes):
     tau = np.sqrt(tau_squared)
 
     # Recalculate weights incorporating between-study variance.
-    weights = [1 / (x.stderr**2 + tau_squared) for x in outcomes]
+    weights = 1 / (stderrs**2 + tau_squared)
 
     # Calculate pooled mean and standard error.
     mean_random = np.sum(weights * means) / np.sum(weights)
     stderr_random = 1 / np.sqrt(np.sum(weights))
 
-    return Outcome(mean_random, stderr_random, sum(ns)), tau, I_squared
+    return Outcome(mean_random, stderr_random, sum([x.n for x in outcomes])), tau, I_squared
 
 
 def print_stats_with_fraud(outcomes, p_fraud):
@@ -449,7 +448,7 @@ def print_stats(
     p_negative = 1 - stats.norm.cdf(result.mean / tau) if tau > 0 else 0
 
     print(
-        f"| {name} | {result.mean:.2f} | {result.stderr:.2f} | {np.round(result.likelihood_ratio, 3):.3g} | {round_pval(result.pval):.3g} | {np.round(100 * I_squared):.0f} | {np.round(p_negative, 3):.3g} |"
+        f"| {name} | {result.mean:.4f} | {result.stderr:.4f} | {np.round(result.likelihood_ratio, 3):.3g} | {round_pval(result.pval):.3g} | {np.round(100 * I_squared):.0f} | {np.round(p_negative, 3):.3g} |"
     )
 
 
@@ -577,13 +576,13 @@ def protest_effect(add_null_clones=False, p_fraud=0):
     ]
 
     print_stats(
-        "Primary Outcomes",
+        "Vote Share",
         vote_outcomes,
         add_null_clones=add_null_clones,
         p_fraud=p_fraud,
     )
     print_stats(
-        "Primary Outcomes (Rain Only)",
+        "Vote Share (Rain Only)",
         vote_outcomes_rain_only,
         add_null_clones=add_null_clones,
         p_fraud=p_fraud,
@@ -601,16 +600,19 @@ def protest_effect(add_null_clones=False, p_fraud=0):
         p_fraud=p_fraud,
     )
 
-    diff = check_difference(pooled_outcome(vote_outcomes)[0], civil_rights_violent)
-    print(
-        f"\nNonviolent vs. Violent Difference: p-value {diff.pval:.4g}, likelihood ratio {diff.likelihood_ratio:.4g}"
-    )
+    # TODO: update to use Cohen's d
+    # diff = check_difference(pooled_outcome(vote_outcomes)[0], civil_rights_violent)
+    # print(
+        # f"\nNonviolent vs. Violent Difference: p-value {diff.pval:.4g}, likelihood ratio {diff.likelihood_ratio:.4g}"
+    # )
 
 
 fraud_checks()
 
 print(
     """
+** Pooled Outcome Results **
+
 | Outcomes | Mean | Std Err | likelihood ratio | p-value | I^2 |P(negative effect) |
 |----------|------|---------|------------------|---------|-----|-------------------|"""
 )
@@ -620,6 +622,8 @@ print()
 
 print(
     """
+** Pooled Outcome Results, Adjusted for Publication Bias **
+
 | Outcomes | Mean | Std Err | likelihood ratio | p-value | I^2 | P(negative effect) |
 |----------|------|---------|------------------|---------|-----|--------------------|"""
 )
