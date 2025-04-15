@@ -448,7 +448,7 @@ def print_stats(
     p_negative = 1 - stats.norm.cdf(result.mean / tau) if tau > 0 else 0
 
     print(
-        f"| {name} | {result.mean:.4f} | {result.stderr:.4f} | {np.round(result.likelihood_ratio, 3):.3g} | {round_pval(result.pval):.3g} | {np.round(100 * I_squared):.0f} | {np.round(p_negative, 3):.3g} |"
+        f"| {name} | {result.mean:.2f} | {result.stderr:.2f} | {np.round(result.likelihood_ratio, 3):.3g} | {round_pval(result.pval):.3g} | {np.round(100 * I_squared):.0f} | {np.round(p_negative, 3):.3g} |"
     )
 
 
@@ -545,7 +545,7 @@ def protest_effect(add_null_clones=False, p_fraud=0):
         mean=0.242 * special_favors_scalar, stderr=0.360 * special_favors_scalar, n=2556
     )
     womens_march_votes = Outcome(mean=4.95, stderr=1.28, n=2940)
-    earth_day_favorability_1 = Outcome(5.72, 3.2, n=5223)  # n in Table 1
+    earth_day_favorability_1 = Outcome(4.6, 2.72, n=5223)  # n in Table 1
     civil_rights_violent = Outcome(mean=-5.54, stderr=2.48, n=2207)  # n in Table 3
 
     vote_outcomes = [
