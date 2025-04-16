@@ -367,6 +367,10 @@ def pooled_outcome(outcomes):
 
 
 def print_stats_with_fraud(outcomes, p_fraud):
+    """
+    Print stats, with the assumption that each study independently has some
+    probability of being fraudulent.
+    """
     probabilistic_pvals = []
 
     # Iterate through every possible combination with respect to which studies
@@ -448,7 +452,7 @@ def print_stats(
     p_negative = 1 - stats.norm.cdf(result.mean / tau) if tau > 0 else 0
 
     print(
-        f"| {name} | {result.mean:.2f} | {result.stderr:.2f} | {np.round(result.likelihood_ratio, 3):.3g} | {round_pval(result.pval):.3g} | {np.round(100 * I_squared):.0f} | {np.round(p_negative, 3):.3g} |"
+        f"| {name} | {result.mean:.2f} | {result.stderr:.2f} | {np.round(result.likelihood_ratio, 3):.3g} | {round_pval(result.pval):.3g} | {np.round(100 * I_squared):.0f}% | {np.round(p_negative, 3):.3g} |"
     )
 
 
@@ -475,7 +479,7 @@ def check_difference(base_outcome, alt_outcome):
     )
 
 
-def vote_share_per_protester(add_null_clones=False, p_fraud=0):
+def vote_share_per_protester(add_null_clones=False, p_fraud=0, include_blm=False):
     """
     Expected change in vote share per protester. Vote share is measured as
 
@@ -485,11 +489,11 @@ def vote_share_per_protester(add_null_clones=False, p_fraud=0):
     is 50%, then vote share per protester is 10 / 0.5 = 20.
     """
     tea_party = Outcome(mean=18.81, stderr=7.85, n=2758)
-    blm_main = Outcome(mean=3.3, stderr=0.6, n=3053)  # main result
+    blm = Outcome(mean=3.3, stderr=0.6, n=3053)  # main result
 
     # Robustness check from Table A2, Model 2, chosen because it has the
     # smallest t-stat.
-    blm = Outcome(mean=2.5, stderr=0.7, n=3053)
+    blm_robustness = Outcome(mean=2.5, stderr=0.7, n=3053)
 
     # Table A3
     blm_ignoring_spatial_autocorrelation = Outcome(mean=11.9, stderr=2.9, n=3053)
@@ -500,10 +504,12 @@ def vote_share_per_protester(add_null_clones=False, p_fraud=0):
 
     outcomes = [
         tea_party,
-        # blm,
-        # blm_ignoring_spatial_autocorrelation,
         womens_march
-    ]
+    ] + (
+        [blm] if include_blm is True else []
+    ) + (
+        [blm_ignoring_spatial_autocorrelation] if include_blm == "ignoring spatial autocorrelation" else []
+    )
     print_stats(
         "Vote Share Per Protester",
         outcomes,
@@ -512,7 +518,8 @@ def vote_share_per_protester(add_null_clones=False, p_fraud=0):
     )
 
 
-def protest_effect(add_null_clones=False, p_fraud=0):
+def protest_effect(print_individual_outcomes=False, add_null_clones=False, p_fraud=0,
+                   include_blm=False):
     """
     Total effect of a protest on societal-level outcomes.
 
@@ -521,59 +528,98 @@ def protest_effect(add_null_clones=False, p_fraud=0):
     not report vote share, I used favorability toward government spending on
     environmental protection.
     """
-    # Convert a 5-point scale to a percentage agreement scale. This is kind of
-    # arbitrary but my logic is:
-    #
-    # On a 5-point scale, the average "agree" score is 4.5 and "disagree" is
-    # 1.5, which is a 3-point swing. Therefore a 3-point change on a 5-point
-    # scale is equivalent to a 100% change on a binary scale. Divide by 3, then
-    # multiply by 100 to get a percentage.
-    special_favors_scalar = 100 / 3
+    # tea_party_scale = 1 / (0.401 / 2)
+    tea_party_scale = 1
+    tea_party_abs_votes = Outcome(mean=1.04 * tea_party_scale, stderr=0.30 * tea_party_scale, n=2758)
+    tea_party_votes = Outcome(mean=1.55 * tea_party_scale, stderr=0.69 * tea_party_scale, n=2758)
+    tea_party_favorability = Outcome(mean=5.7 * tea_party_scale, stderr=2.5 * tea_party_scale, n=2758)
 
-    tea_party_votes = Outcome(mean=1.55, stderr=0.69, n=2758)
-    tea_party_favorability = Outcome(mean=5.7, stderr=2.5, n=2758)
-    blm_votes_main = Outcome(mean=2.7, stderr=1.2, n=3053)
+    blm_votes = Outcome(mean=2.7, stderr=1.2, n=3053)
 
     # Robustness check from Table A2, Model 2, chosen because it has the
     # smallest t-stat.
-    blm_votes = Outcome(mean=1.5, stderr=0.8, n=3053)
+    blm_votes_robustness = Outcome(mean=1.5, stderr=0.8, n=3053)
 
-    # Table A3
-    blm_votes_ignoring_spatial_autocorrelation = Outcome(mean=10.5, stderr=3.2, n=3053)
-
+    # Convert a 5-point scale to a percentage agreement scale. This is kind of
+    # arbitrary but my logic is:
+    #
+    # On a 5-point scale, the median "agree" score is 4.5 and "disagree" is
+    # 1.5, which is a 3-point swing. Therefore a 3-point change on a 5-point
+    # scale is equivalent to a 100% change on a binary scale. Divide by 3, then
+    # multiply by 100 to get a percentage.
+    special_favors_scale = 100 / 3
     blm_special_favors = Outcome(
-        mean=0.242 * special_favors_scalar, stderr=0.360 * special_favors_scalar, n=2556
+        mean=0.242 * special_favors_scale, stderr=0.360 * special_favors_scale, n=2556
     )
-    womens_march_votes = Outcome(mean=4.95, stderr=1.28, n=2940)
-    earth_day_favorability_1 = Outcome(4.6, 2.72, n=5223)  # n in Table 1
-    civil_rights_violent = Outcome(mean=-5.54, stderr=2.48, n=2207)  # n in Table 3
+
+    # Gelman (2008), "Scaling regression inputs by dividing by two standard
+    # deviations" proposes scaling continuous variables by 2 SD because that
+    # way they can be directly compared to binary variables, as long as the
+    # binary variables have a SD of 0.5.
+
+    # Women's March is reported in terms of change in Y per 1 SD change in X.
+    # Divide by 2 to standardize.
+    womens_march_votes = Outcome(mean=4.95 / 2, stderr=1.28 / 2, n=2940)
+    womens_march_turnout = Outcome(mean=0.81 / 2, stderr=0.27 / 2, n=2940)
+
+    # Rainfall SD = 39 (unit = 0.1 mm) and reported outcomes are scaled up
+    # 100x. See Table 1, Panel B.
+    earth_day_scale = 39 / 100 / 2
+
+    earth_day_favorability_1 = Outcome(mean=4.6 * earth_day_scale, stderr=2.72 * earth_day_scale, n=2523)  # n in Table 1
+    earth_day_favorability_under_20 = Outcome(8.54 * earth_day_scale, 3.20 * earth_day_scale, 2523)
+    earth_day_favorability_2 = Outcome(5.76 * earth_day_scale, 3.6 * earth_day_scale, 2523)
+    earth_day_favorability_2_under_20 = Outcome(9.76 * earth_day_scale, 4.2 * earth_day_scale, 2523)
+    earth_day_CO = Outcome(0.360 * earth_day_scale, 0.158 * earth_day_scale, 2523)
+
+    # Paper numbers are scaled up by 100 and birth defects stdev is 0.01 (Table
+    # 1, Panel B). 100 * 0.01 = 1 so no additional scaling is needed.
+    earth_day_birth_defects = Outcome(5.14 * earth_day_scale, 1.1 * earth_day_scale, 2523)
+
+    civil_rights_violent = Outcome(mean=-5.56, stderr=2.48, n=2207)  # n in Table 3
+
+    if print_individual_outcomes:
+        print(f"| Tea Party | votes (as % of population) | {tea_party_abs_votes.mean:.2f} | {tea_party_abs_votes.stderr:.2f} |")
+        print(f"| Tea Party | vote share | {tea_party_votes.mean:.2f} | {tea_party_votes.stderr:.2f} |")
+        print(f"| Tea Party | strongly supports Tea Party | {tea_party_favorability.mean:.2f} | {tea_party_favorability.stderr:.2f} |")
+        print(f"| Civil Rights (violent) | vote share among white voters | {civil_rights_violent.mean:.2f} | {civil_rights_violent.stderr:.2f} |")
+        print(f"| BLM | vote share | {blm_votes.mean:.2f} | {blm_votes.stderr:.2f} |")
+        print(f"| BLM | \"Blacks should not receive special favors\" | {blm_special_favors.mean:.2f} | {blm_special_favors.stderr:.2f} |")
+        print(f"| Women's March | women's vote share | {womens_march_votes.mean:.2f} | {womens_march_votes.stderr:.2f} |")
+        print(f"| Women's March | voter turnout | {womens_march_turnout.mean:.2f} | {womens_march_turnout.stderr:.2f} |")
+        print(f"| Earth Day | favorability (1)[^21] | {earth_day_favorability_1.mean:.2f} | {earth_day_favorability_1.stderr:.2f} |")
+        print(f"| Earth Day | favorability (1)[^21] among under-20s | {earth_day_favorability_under_20.mean:.2f} | {earth_day_favorability_under_20.stderr:.2f} |")
+        print(f"| Earth Day | favorability (2)[^21] | {earth_day_favorability_2.mean:.2f} | {earth_day_favorability_2.stderr:.2f} |")
+        print(f"| Earth Day | favorability (2)[^21] among under-20s | {earth_day_favorability_2_under_20.mean:.2f} | {earth_day_favorability_2_under_20.stderr:.2f} |")
+        print(f"| Earth Day | carbon monoxide | {earth_day_CO.mean:.2f} | {earth_day_CO.stderr:.2f} |")
+        print(f"| Earth Day | birth defects | {earth_day_birth_defects.mean:.2f} | {earth_day_birth_defects.stderr:.2f} |")
+        return None
 
     vote_outcomes = [
         tea_party_votes,
-        # blm_votes,
-        # blm_votes_ignoring_spatial_autocorrelation,
         womens_march_votes,
         earth_day_favorability_1
-    ]
+    ] + (
+        [blm_votes] if include_blm is True else []
+    )
     vote_outcomes_rain_only = [
         tea_party_votes,
-        # blm_votes,
-        # blm_votes_ignoring_spatial_autocorrelation,
         earth_day_favorability_1
-    ]
+    ] + (
+        [blm_votes] if include_blm is True else []
+    )
     single_hypothesis_outcomes = [
         tea_party_votes,
-        # blm_votes,
-        # blm_votes_ignoring_spatial_autocorrelation,
         womens_march_votes,
         earth_day_favorability_1,
         civil_rights_violent,
-    ]
+    ] + (
+        [blm_votes] if include_blm is True else []
+    )
     favorability_outcomes = [
         tea_party_favorability,
-        # blm_special_favors,
         earth_day_favorability_1,
-    ]
+    ] + ([blm_special_favors] if include_blm is True else [])
 
     print_stats(
         "Vote Share",
@@ -600,14 +646,26 @@ def protest_effect(add_null_clones=False, p_fraud=0):
         p_fraud=p_fraud,
     )
 
-    # TODO: update to use Cohen's d
     # diff = check_difference(pooled_outcome(vote_outcomes)[0], civil_rights_violent)
     # print(
-        # f"\nNonviolent vs. Violent Difference: p-value {diff.pval:.4g}, likelihood ratio {diff.likelihood_ratio:.4g}"
+        # f"\nNonviolent vs. Violent Difference: likelihood ratio {diff.likelihood_ratio:.4g}, p-value {diff.pval:.4g}"
     # )
 
 
-fraud_checks()
+include_blm = False
+# include_blm = True
+# include_blm = "ignoring spatial autocorrelation"
+
+# fraud_checks()
+
+# print(
+#     """
+# ** Standardized Individual Outcomes **
+
+# | Protest | Outcome | Change | Std Err |
+# |---------|---------|--------|---------|"""
+# )
+# protest_effect(print_individual_outcomes=True)
 
 print(
     """
@@ -616,8 +674,8 @@ print(
 | Outcomes | Mean | Std Err | likelihood ratio | p-value | I^2 |P(negative effect) |
 |----------|------|---------|------------------|---------|-----|-------------------|"""
 )
-vote_share_per_protester(add_null_clones=False)
-protest_effect(add_null_clones=False)
+vote_share_per_protester(include_blm=include_blm)
+protest_effect(include_blm=include_blm)
 print()
 
 print(
@@ -627,7 +685,7 @@ print(
 | Outcomes | Mean | Std Err | likelihood ratio | p-value | I^2 | P(negative effect) |
 |----------|------|---------|------------------|---------|-----|--------------------|"""
 )
-vote_share_per_protester(add_null_clones=True)
-protest_effect(add_null_clones=True)
+vote_share_per_protester(add_null_clones=True, include_blm=include_blm)
+protest_effect(add_null_clones=True, include_blm=include_blm)
 
-orazani_publication_bias()
+# orazani_publication_bias()
