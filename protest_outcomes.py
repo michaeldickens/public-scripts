@@ -10,9 +10,9 @@ Code for my protest outcomes meta-analysis.
 
 Studies included:
 
-Madestam, A., Shoag, D., Veuger, S., & Yanagizawa-Drott, D. (2013). Do
-Political Protests Matter? Evidence from the Tea Party Movement.
-https://doi.org/10.1093/qje/qjt021
+Hungerman, D., & Moorthy, V. (2023). Every Day Is Earth Day: Evidence on the
+Long-Term Impact of Environmental Activism.
+https://doi.org/10.1257/app.20210045
 
 Klein Teeselink, B., & Melios, G. (2021). Weather to Protest: The Effect of
 Black Lives Matter Protests on the 2020 Presidential Election.
@@ -20,6 +20,10 @@ https://dx.doi.org/10.2139/ssrn.3809877
 
 Larreboure, M., & Gonzalez, F. (2021). The Impact of the Women’s March on the
 U.S. House Election. https://mlarreboure.com/womenmarch.pdf
+
+Madestam, A., Shoag, D., Veuger, S., & Yanagizawa-Drott, D. (2013). Do
+Political Protests Matter? Evidence from the Tea Party Movement.
+https://doi.org/10.1093/qje/qjt021
 
 Wasow, O. (2020). Agenda Seeding: How 1960s Black Protests Moved Elites,
 Public Opinion and Voting. https://doi.org/10.1017/S000305542000009X
@@ -77,12 +81,6 @@ def publication_bias_test(name, means, stderrs, funnel_plot=False):
         Means of the outcomes.
     stderrs : array-like
         Standard errors of the outcomes.
-
-    Returns:
-    --------
-    float
-        p-value for the Egger's regression test.
-
     """
     precisions = 1 / np.array(stderrs)
     slope, intercept, r, p_value, std_err = stats.linregress(precisions, means)
