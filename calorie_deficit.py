@@ -6,9 +6,10 @@ calorie_deficit.py
 Author: Michael Dickens
 Created: 2025-04-22
 
-Energy deficiency impairs resistance training gains in lean mass but not strength: A meta-analysis and meta-regression.
+Energy deficiency impairs resistance training gains in lean mass but not
+strength: A meta-analysis and meta-regression.
 https://onlinelibrary.wiley.com/doi/full/10.1111/sms.14075
-Table S2 from Supporting Information
+
 
 """
 
@@ -19,6 +20,8 @@ import matplotlib.pyplot as plt
 E = 1  # experimental (energy deficit) group
 C = 0  # control group
 
+# From Table S2 under Supporting Information. The table includes both lean mass
+# and strength outcomes but this table only includes lean mass.
 all_outcomes = [
     (E, 451, -0.06),
     (C, 51, 0.24),
@@ -66,6 +69,7 @@ all_outcomes = [
     (C, 170, 0.63),
 ]
 
+
 def save_plot(ed_only):
     if ed_only:
         outcomes = [outcome for outcome in all_outcomes if outcome[0] == E]
@@ -77,6 +81,12 @@ def save_plot(ed_only):
     X = sm.add_constant(x)
     model = sm.OLS(y, X)
     results = model.fit()
+    if ed_only:
+        print("*** RT+ED Regression ***\n")
+    else:
+        print("*** RT+ED and RT+CON Regression ***\n")
+    print(results.summary())
+    print()
 
     x_ed = np.array([outcome[1] for outcome in all_outcomes if outcome[0] == E])
     x_con = np.array([outcome[1] for outcome in all_outcomes if outcome[0] == C])
@@ -84,22 +94,24 @@ def save_plot(ed_only):
     y_con = np.array([outcome[2] for outcome in all_outcomes if outcome[0] == C])
 
     plt.figure()
-    plt.scatter(x_ed, y_ed, label='RT+ED')
+    plt.scatter(x_ed, y_ed, label="RT+ED")
 
     if not ed_only:
-        plt.scatter(x_con, y_con, label='RD+CON')
+        plt.scatter(x_con, y_con, label="RD+CON")
 
     plt.plot(x, results.predict(X))
-    plt.xlabel('Energy Deficit (kcal/day)', fontsize=14)
-    plt.ylabel('Change in Lean Mass (effect size)', fontsize=14)
-    plt.title('Effect of Energy Deficit on Lean Mass', fontsize=16)
+    plt.xlabel("Energy Deficit (kcal/day)", fontsize=14)
+    plt.ylabel("Change in Lean Mass (effect size)", fontsize=14)
+    plt.title("Effect of Energy Deficit on Lean Mass", fontsize=16)
     plt.legend(fontsize=12)
     plt.grid()
     if ed_only:
         # save to file
-        plt.savefig('/home/mdickens/programs/website/assets/images/RT+ED.png')
+        plt.savefig("/home/mdickens/programs/website/assets/images/RT+ED.png")
     else:
-        plt.savefig('/home/mdickens/programs/website/assets/images/RT+ED-and-RT+CON.png')
+        plt.savefig(
+            "/home/mdickens/programs/website/assets/images/RT+ED-and-RT+CON.png"
+        )
 
 
 save_plot(True)
