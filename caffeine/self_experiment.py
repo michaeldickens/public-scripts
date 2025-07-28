@@ -8,6 +8,8 @@ Created: 2024-02-23
 
 Script for analyzing my caffeine self-experiment.
 
+Note: May 2025 tests are done on a new mouse, HyperX Pulsefire Haste, and I'm doing it with both Chrome and Firefox open instead of just Chrome.
+
 TODO: create an option to remove any entries that contain the word "outlier"
 
 """
@@ -104,6 +106,7 @@ PHASE_3_RANGE = (
 PHASE_4_RANGE = (datetime(2024, 4, 13).date(), datetime(2024, 4, 21).date())
 PHASE_5_RANGE = (datetime(2024, 4, 22).date(), datetime(2024, 6,  1).date())
 FULL_RANGE = (PHASE_1_RANGE[0], PHASE_5_RANGE[1])
+SAT_PHASE_RANGE = (datetime(2025, 5, 18).date(), datetime(2025, 6, 30).date())
 
 phase_ranges = {
     "calibration": PHASE_1_RANGE,
@@ -112,6 +115,7 @@ phase_ranges = {
     "abstinence2": PHASE_4_RANGE,
     "experimental2": PHASE_5_RANGE,
     "both-experiments": (PHASE_3_RANGE[0], PHASE_5_RANGE[1]),
+    "Saturday": SAT_PHASE_RANGE,
 }
 
 caf_deltas = []
@@ -514,7 +518,57 @@ def caf_day1_vs_day3():
     )
 
 
+def compare_for_saturdays(message, experimental, control):
+    ttest = ttest_ind(experimental, control)
+    print(
+        f"\n{message}:\n"
+        f"\t{np.mean(experimental):.1f} ms (sd {np.std(experimental):.1f}) vs. {np.mean(control):.1f} ms (sd {np.std(control):.1f})\n"
+        f"\tmean difference = {np.mean(experimental) - np.mean(control):.1f} ms\n"
+        f"\tt-stat = {ttest.statistic:.1f}, p-value = {ttest.pvalue:.3f}\n"
+    )
+
+
+def saturdays():
+    phase_name = "Saturday"
+    phase_range = phase_ranges[phase_name]
+
+    sat_caf = []
+    nonsat_caf = []
+    sat_nocaf = []
+    any_caf = []
+    any_nocaf = []
+    morning_after_caf = []
+    morning_after_nocaf = []
+    for i in range((phase_range[1] - phase_range[0]).days + 1):
+        day = phase_range[0] + timedelta(days=i)
+        if day not in caf_daily_RTs:
+            continue
+        caf_RT = np.mean(caf_daily_RTs[day])
+        nocaf_RT = np.mean(nocaf_daily_RTs[day])
+
+        any_nocaf.append(nocaf_RT)
+        if day.weekday() in [0, 2, 4, 5]:
+            any_caf.append(caf_RT)
+
+        if day.weekday() == 5:  # Saturday
+            sat_caf.append(caf_RT)
+            sat_nocaf.append(nocaf_RT)
+
+        if day.weekday() in [0, 2, 4]:  # Monday, Wednesday, Friday
+            nonsat_caf.append(caf_RT)
+
+        if day.weekday() in [x + 1 for x in [0, 2, 4, 5]]:
+            morning_after_caf.append(nocaf_RT)
+        else:
+            morning_after_nocaf.append(nocaf_RT)
+
+    compare_for_saturdays("caffeine vs. no-caffeine", any_caf, any_nocaf)
+    compare_for_saturdays("Saturdays vs. non-Saturday caffeine days", sat_caf, nonsat_caf)
+    compare_for_saturdays("morning after caffeine vs. morning after nocaf", morning_after_caf, morning_after_nocaf)
+
+
 phase_name = "experimental2"
-control_for_sleep(phase_name)
+# control_for_sleep(phase_name)
 # plot_regression(phase_name)
 # caf_day1_vs_day3()
+saturdays()

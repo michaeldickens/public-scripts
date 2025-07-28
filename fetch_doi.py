@@ -23,6 +23,7 @@ import re
 import requests
 import sys
 
+
 def fetch_metadata(search_url, email_address=None):
     """
     Get metadata for a DOI or URL from CrossRef.
@@ -32,9 +33,7 @@ def fetch_metadata(search_url, email_address=None):
     if email_address:
         # provide contact info in User-Agent header to get the better server
         # that's "reserved for polite users"
-        headers = {
-            "User-Agent": f"mailto:{email_address}"
-        }
+        headers = {"User-Agent": f"mailto:{email_address}"}
     response = requests.get(crossref_url, headers=headers)
     response.raise_for_status()
     data = response.json()
@@ -67,9 +66,12 @@ def fetch_metadata(search_url, email_address=None):
     year = ref["issued"]["date-parts"][0][0]
     doi_url = f"https://doi.org/{ref['DOI']}"
     proper_url = search_url if search_url.startswith("http") else doi_url
-    full_citation = f"{authors_full_str} ({year})\n{ref['title'][0]}\n{proper_url}\n{ref['DOI']}"
+    full_citation = (
+        f"{authors_full_str} ({year})\n{ref['title'][0]}\n{proper_url}\n{ref['DOI']}"
+    )
     short_citation = f"{author_last_names_str} ({year})"
     return {"full_citation": full_citation, "short_citation": short_citation}
+
 
 if __name__ == "__main__":
     # get DOI or URL from command line arguments
@@ -79,8 +81,4 @@ if __name__ == "__main__":
     doi = sys.argv[1]
     email_address = sys.argv[2] if len(sys.argv) > 2 else None
     metadata = fetch_metadata(doi, email_address)
-    print(
-        metadata["short_citation"]
-        + "\n"
-        + metadata["full_citation"]
-    )
+    print(metadata["short_citation"] + "\n" + metadata["full_citation"])

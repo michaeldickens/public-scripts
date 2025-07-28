@@ -78,7 +78,7 @@ def save_plot(ed_only):
 
     x = np.array([outcome[1] for outcome in outcomes])
     y = np.array([outcome[2] for outcome in outcomes])
-    X = sm.add_constant(x)
+    X = sm.add_constant(x/1000)  # divide by 1000 to make slope readable
     model = sm.OLS(y, X)
     results = model.fit()
     if ed_only:
@@ -97,7 +97,7 @@ def save_plot(ed_only):
     plt.scatter(x_ed, y_ed, label="RT+ED")
 
     if not ed_only:
-        plt.scatter(x_con, y_con, label="RD+CON")
+        plt.scatter(x_con, y_con, label="RT+CON")
 
     plt.plot(x, results.predict(X))
     plt.xlabel("Energy Deficit (kcal/day)", fontsize=14)
