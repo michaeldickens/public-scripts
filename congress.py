@@ -39,20 +39,15 @@ def plot_vote_histogram(csv_path, window_pct=5, start_date=None, end_date=None, 
         # If possible, convert to int so it looks better when printing
         window_pct = int(window_pct)
 
-    # Read the data
     print("Loading data...")
     df = pd.read_csv(csv_path)
-
-    # Convert date column to datetime
     df["date"] = pd.to_datetime(df["date"])
 
-    # Filter for passage votes only
     print("Filtering for passage votes...")
     passage_df = df[
         df["vote_question"].str.contains("On Passage", case=False, na=False)
     ].copy()
 
-    # Apply date filters
     if start_date:
         start_date = pd.to_datetime(start_date)
         passage_df = passage_df[passage_df["date"] >= start_date]
@@ -87,11 +82,8 @@ def plot_vote_histogram(csv_path, window_pct=5, start_date=None, end_date=None, 
         f"\nVotes within {window_pct} percentage points of 50%: {within_window} ({within_window/len(passage_df)*100:.1f}%)"
     )
 
-    # Create the histogram
     plt.figure(figsize=(12, 6))
-
     plt.title(f"US Senate/House vote percentages, {start_date.year} to {end_date.year}")
-
     plt.hist(passage_df["vote_pct"], bins=bins, edgecolor="black", alpha=0.7)
 
     # Add a vertical line at 50%
@@ -124,7 +116,6 @@ def plot_vote_histogram(csv_path, window_pct=5, start_date=None, end_date=None, 
     return plt, passage_df
 
 
-# Example usage:
 if __name__ == "__main__":
     csv_file = "data/Congress_votes.csv"
 
