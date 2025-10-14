@@ -3,7 +3,7 @@
 ai_safety_now_later.py
 ----------------------
 
-Author: Michael Dickens <michael@mdickens.me>
+Author: Michael Dickens
 Created: 2021-07-29
 
 """
