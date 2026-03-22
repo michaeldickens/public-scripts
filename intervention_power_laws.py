@@ -117,7 +117,7 @@ def fit_power_law(source_name, entries):
     plt.plot(entry_means, stats.pareto.cdf(entry_means, *fitparams))
     plt.plot(entry_means, stats.lognorm.cdf(entry_means, *lognorm_fitparams), color='green')
     plt.gcf().set_size_inches(10, 8)
-    plt.savefig(f"data/{source_name}-curve-fit.png", dpi=150)
+    plt.savefig(f"images/{source_name}-curve-fit.png", dpi=150)
     plt.show()
 
 
