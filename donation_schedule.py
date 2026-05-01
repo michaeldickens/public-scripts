@@ -44,18 +44,30 @@ def donation_schedule(dist="pareto", years=30, **p):
     return t.astype(int), d / d.sum(), cond / cond.sum()
 
 
-def plot(title, t, planned, cond, filename="donation_schedule.png"):
+def plot(title, t, planned, cond, dist_obj, filename="donation_schedule.png"):
     import matplotlib.pyplot as plt
 
+    # Discretize PDF to per-year probability mass on the same x-grid as the bars,
+    # so % probability mass per year is directly comparable to % of budget per year.
+    edges_lo, edges_hi = t - 0.5, t + 0.5
+    pmf = dist_obj.cdf(edges_hi) - dist_obj.cdf(edges_lo)
+    # Conditional pmf: P(singularity in year t | survived to t-0.5)
+    surv_lo = np.maximum(dist_obj.sf(edges_lo), 1e-15)
+    cond_pmf = pmf / surv_lo
+
     fig, (a1, a2) = plt.subplots(1, 2, figsize=(12, 4.5))
-    for ax, data, label, color in [
-        (a1, planned, "Planned (ex ante)", "#2563eb"),
-        (a2, cond, "Conditional (updating on survival)", "#dc2626"),
+    for ax, data, overlay, label, color in [
+        (a1, planned, pmf, "Planned (ex ante)", "#2563eb"),
+        (a2, cond, cond_pmf, "Conditional (updating on survival)", "#dc2626"),
     ]:
-        ax.bar(t, data * 100, color=color, alpha=0.85, width=0.8)
-        ax.set(xlabel="Year", ylabel="% of budget", title=label)
+        ax.bar(t, data * 100, color=color, alpha=0.85, width=0.8, label="Donation")
+        ax.plot(t, overlay * 100, color="black", linewidth=1,
+                marker="o", markersize=0, label="Singularity probability")
+        ax.set(xlabel="Year", ylabel="% per year")
+        ax.set_title(label, fontsize=14)
         ax.spines[["top", "right"]].set_visible(False)
-    fig.suptitle(title, fontsize=13, fontweight="bold")
+        ax.legend(frameon=False, fontsize=11)
+    fig.suptitle(title, fontsize=16, fontweight="bold")
     plt.tight_layout()
     plt.savefig(filename, dpi=150, bbox_inches="tight")
     print(f"  Saved {filename}")
@@ -63,9 +75,12 @@ def plot(title, t, planned, cond, filename="donation_schedule.png"):
 
 if __name__ == "__main__":
     median_timeline = 7
+    alpha = 1.5
+    t_min = 3
+    sigma = 1
     cases = [
-        ("Pareto(α=1.5)", "pareto", dict(alpha=1.5, t_min=3, median=median_timeline)),
-        ("LogNormal(σ=1)", "lognormal", dict(mu=np.log(median_timeline), sigma=1)),
+        (f"Pareto(median={median_timeline}, min={t_min}, α={alpha})", "pareto", dict(alpha=alpha, t_min=t_min, median=median_timeline)),
+        (f"LogNormal(median={median_timeline}, σ={sigma})", "lognormal", dict(mu=np.log(median_timeline), sigma=sigma)),
     ]
     for title, dist, params in cases:
         if dist == "pareto":
@@ -83,4 +98,4 @@ if __name__ == "__main__":
         t, planned, cond = donation_schedule(dist, 30, **params)
         for y, p, c in zip(t, planned, cond):
             print(f"  Year {y:2d}:  planned {p*100:6.2f}%   conditional {c*100:6.2f}%")
-        plot(title, t, planned, cond, f"images/donation_schedule_{dist}.png")
+        plot(title, t, planned, cond, d, f"images/donation_schedule_{dist}.png")
