@@ -4,13 +4,13 @@ AI safety donation schedule calculator with uncertain AI timelines
 
 Created 2026-03-21.
 
-Originally written by Claude Opus 4.6.
+Code originally written by Claude Opus 4.6. Docs by Michael Dickens.
 
 The basic concept: I want to donate an equal amount of money every year from now until the singularity. But I don't know when the singularity will happen. How much should I donate each year (in terms of % of starting wealth)?
 
 This script calculates the answer given either a Pareto or a log-normal distribution over AI timelines.
 
-The reason for donating an equal amount each year is that it's simple. A "proper" justification is that there's a tradeoff between early donations having compounding effects and late donations coming in at the right time/being better informed, and if you're unsure about which side of the tradeoff matters more, then you should distribute donations over time.
+The reason for donating an equal amount each year is that it's simple. As a qualitative justification, there's a tradeoff between early donations having compounding effects and late donations coming in at the right time/being better informed. If you're unsure about which side of the tradeoff matters more, then you should distribute donations over time.
 
 The analytic solution for the annual donation amount is given by
 
@@ -50,7 +50,7 @@ def plot(title, t, planned, cond, filename="donation_schedule.png"):
     fig, (a1, a2) = plt.subplots(1, 2, figsize=(12, 4.5))
     for ax, data, label, color in [
         (a1, planned, "Planned (ex ante)", "#2563eb"),
-        (a2, cond, "Conditional (updated)", "#dc2626"),
+        (a2, cond, "Conditional (updating on survival)", "#dc2626"),
     ]:
         ax.bar(t, data * 100, color=color, alpha=0.85, width=0.8)
         ax.set(xlabel="Year", ylabel="% of budget", title=label)
@@ -62,10 +62,10 @@ def plot(title, t, planned, cond, filename="donation_schedule.png"):
 
 
 if __name__ == "__main__":
-    target_median = 7
+    median_timeline = 7
     cases = [
-        ("Pareto(α=1.5)", "pareto", dict(alpha=1.5, t_min=3, median=target_median)),
-        ("LogNormal(σ=1)", "lognormal", dict(mu=np.log(target_median), sigma=1)),
+        ("Pareto(α=1.5)", "pareto", dict(alpha=1.5, t_min=3, median=median_timeline)),
+        ("LogNormal(σ=1)", "lognormal", dict(mu=np.log(median_timeline), sigma=1)),
     ]
     for title, dist, params in cases:
         if dist == "pareto":
@@ -74,8 +74,12 @@ if __name__ == "__main__":
             d = stats.pareto(b=params["alpha"], loc=loc, scale=scale)
         elif dist == "lognormal":
             d = stats.lognorm(s=params["sigma"], scale=np.exp(params["mu"]))
-        mean, median = d.mean(), d.median()  # (9.0, 4.762...)
+
+        # explicitly calculate median just to make sure it matches the
+        # median_timeline parameter
+        mean, median = d.mean(), d.median()
         print(f"\n=== {title} (mean {mean:.1f}, median {median:.1f}) ===")
+
         t, planned, cond = donation_schedule(dist, 30, **params)
         for y, p, c in zip(t, planned, cond):
             print(f"  Year {y:2d}:  planned {p*100:6.2f}%   conditional {c*100:6.2f}%")
