@@ -1,27 +1,38 @@
-"""
-AI safety donation schedule calculator with uncertain AI timelines
+"""AI safety donation schedule calculator with uncertain AI timelines
 ==================================================================
 
 Created 2026-03-21.
 
-Primarily written by Claude Opus 4.6 and 4.7. Docs by Michael Dickens.
+Primarily written by Claude Opus 4.6 and 4.7. Docstring by Michael Dickens.
 
-The basic concept: I want to donate an equal amount of money every year from now until the singularity. But I don't know when the singularity will happen. How much should I donate each year (in terms of % of starting wealth)?
+The basic concept: I want to donate an equal amount of money every year from
+now until the singularity. But I don't know when the singularity will happen.
+How much should I donate each year (in terms of % of starting wealth)?
 
-This script calculates the answer given either a Pareto or a log-normal distribution over AI timelines.
+This script calculates the answer given either a Pareto or a log-normal
+distribution over AI timelines.
 
-The reason for donating an equal amount each year is that it's simple. As a qualitative justification, there's a tradeoff between early donations having compounding effects and late donations coming in at the right time/being better informed. If you're unsure about which side of the tradeoff matters more, then you should distribute donations over time.
+The reason for donating an equal amount each year is that it's simple. As a
+qualitative justification, there's a tradeoff between early donations having
+compounding effects and late donations coming in at the right time/being better
+informed. If you're unsure about which side of the tradeoff matters more, then
+you should distribute donations over time.
 
 The analytic solution for the annual donation amount is given by
 
-    d(t) = integral from t to infinity of 1/T * f(T) dT
+    D(T) = integral from T to infinity of 1/t * f(t) dt
 
-where f(T) is the probability density of the singularity occurring at time T. Claude used this to derive the analytic solutions for Pareto and log-normal distributions.
+where f(t) is the probability density of the singularity occurring at time t.
+Claude used this to derive the analytic solutions for Pareto and log-normal
+distributions.
 
-To customize the inputs (your timeline beliefs, distribution shape parameters, etc.), edit the CONFIGURATION block at the top of `if __name__ == "__main__":` below.
+To customize the inputs (your timeline beliefs and distribution shape
+parameters), edit the CONFIGURATION block below.
 
-See also the Claude chat that generated this script:
+See also the Claude chats that generated this script:
 https://claude.ai/share/5830f229-4dad-4427-aee8-30937746d468
+https://claude.ai/share/a258d624-f4e9-456f-ba5d-89abc7844a63
+
 """
 
 # ============================================================
@@ -59,7 +70,7 @@ PARETO_ALPHA = 1.5
 # Controls the spread. Larger sigma = more uncertainty.
 # sigma=1 means roughly: 68% chance the singularity is between
 # median/e and median*e (i.e., between ~2.6 and ~19 years for median=7).
-# Typical values: 0.5 (confident) to 1.5 (very uncertain).
+# Typical values: 0.5 (confident) to 2 (very uncertain).
 LOGNORMAL_SIGMA = 1.0
 
 # ============================================================
@@ -75,12 +86,10 @@ def donation_schedule(dist="pareto", years=30, **p):
     t = np.arange(1, years + 1, dtype=float)
     if dist == "pareto":
         a, tm = p["alpha"], p["t_min"]
-        d = np.where(t >= tm, a * tm**a / ((a + 1) * t ** (a + 1)),
-                     a / ((a + 1) * tm))
+        d = np.where(t >= tm, a * tm**a / ((a + 1) * t ** (a + 1)), a / ((a + 1) * tm))
     elif dist == "lognormal":
         mu, s = p["mu"], p["sigma"]
-        d = np.exp(-mu + s**2 / 2) * stats.norm.sf(
-            (np.log(t) - (mu - s**2)) / s)
+        d = np.exp(-mu + s**2 / 2) * stats.norm.sf((np.log(t) - (mu - s**2)) / s)
     return t.astype(int), d / d.sum()
 
 
@@ -90,8 +99,7 @@ def _per_year_pmf(dist_obj, t):
 
 def _draw_panel(ax, t, planned, pmf, title, color):
     ax.bar(t, planned * 100, color=color, alpha=0.85, width=0.8, label="Donation")
-    ax.plot(t, pmf * 100, color="black", linewidth=1.2,
-            label="Singularity probability")
+    ax.plot(t, pmf * 100, color="black", linewidth=1.2, label="Singularity probability")
     ax.set(xlabel="Year", ylabel="% per year")
     ax.set_title(title, fontsize=13)
     ax.spines[["top", "right"]].set_visible(False)
@@ -100,6 +108,7 @@ def _draw_panel(ax, t, planned, pmf, title, color):
 
 def plot_single(title, t, planned, dist_obj, filename, color="#2563eb"):
     import matplotlib.pyplot as plt
+
     fig, ax = plt.subplots(figsize=(7, 4.5))
     _draw_panel(ax, t, planned, _per_year_pmf(dist_obj, t), title, color)
     plt.tight_layout()
@@ -110,6 +119,7 @@ def plot_single(title, t, planned, dist_obj, filename, color="#2563eb"):
 
 def plot_combined(scenarios, colors, filename):
     import matplotlib.pyplot as plt
+
     n = len(scenarios)
     fig, axes = plt.subplots(1, n, figsize=(6 * n, 4.5))
     if n == 1:
@@ -136,16 +146,24 @@ if __name__ == "__main__":
         )
 
     cases = [
-        (f"Pareto(median={MEDIAN_TIMELINE}, min={PARETO_MIN_YEAR}, α={PARETO_ALPHA})",
-         "pareto", dict(alpha=PARETO_ALPHA, t_min=PARETO_MIN_YEAR, median=MEDIAN_TIMELINE)),
-        (f"LogNormal(median={MEDIAN_TIMELINE}, σ={LOGNORMAL_SIGMA})",
-         "lognormal", dict(mu=np.log(MEDIAN_TIMELINE), sigma=LOGNORMAL_SIGMA)),
+        (
+            f"Pareto(median={MEDIAN_TIMELINE}, min={PARETO_MIN_YEAR}, α={PARETO_ALPHA})",
+            "pareto",
+            dict(alpha=PARETO_ALPHA, t_min=PARETO_MIN_YEAR, median=MEDIAN_TIMELINE),
+        ),
+        (
+            f"LogNormal(median={MEDIAN_TIMELINE}, σ={LOGNORMAL_SIGMA})",
+            "lognormal",
+            dict(mu=np.log(MEDIAN_TIMELINE), sigma=LOGNORMAL_SIGMA),
+        ),
     ]
 
     scenarios = []
     for title, dist, params in cases:
         if dist == "pareto":
-            scale = (params["median"] - params["t_min"]) / (2 ** (1 / params["alpha"]) - 1)
+            scale = (params["median"] - params["t_min"]) / (
+                2 ** (1 / params["alpha"]) - 1
+            )
             loc = params["t_min"] - scale
             d = stats.pareto(b=params["alpha"], loc=loc, scale=scale)
         elif dist == "lognormal":
@@ -163,14 +181,14 @@ if __name__ == "__main__":
     years = scenarios[0][2]
     print("\n" + " " * 8 + "  ".join(f"{tt:>20s}" for tt in titles))
     for i, y in enumerate(years):
-        row = f"Year {y:2d}  " + "  ".join(
-            f"{s[3][i] * 100:19.2f}%" for s in scenarios
-        )
+        row = f"Year {y:2d}  " + "  ".join(f"{s[3][i] * 100:19.2f}%" for s in scenarios)
         print(row)
 
     colors = ["#2563eb", "#dc2626", "#059669"]
     for (title, dist, t, planned, d), color in zip(scenarios, colors):
-        plot_single(title, t, planned, d,
-                    f"images/donation_schedule_{dist}.png", color)
-    plot_combined([(s[0], s[2], s[3], s[4]) for s in scenarios], colors,
-                  "images/donation_schedule_combined.png")
+        plot_single(title, t, planned, d, f"images/donation_schedule_{dist}.png", color)
+    plot_combined(
+        [(s[0], s[2], s[3], s[4]) for s in scenarios],
+        colors,
+        "images/donation_schedule_combined.png",
+    )
