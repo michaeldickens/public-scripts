@@ -4,7 +4,7 @@ AI safety donation schedule calculator with uncertain AI timelines
 
 Created 2026-03-21.
 
-Code originally written by Claude Opus 4.6 and 4.7. Docs by Michael Dickens.
+Primarily written by Claude Opus 4.6 and 4.7. Docs by Michael Dickens.
 
 The basic concept: I want to donate an equal amount of money every year from now until the singularity. But I don't know when the singularity will happen. How much should I donate each year (in terms of % of starting wealth)?
 
@@ -18,102 +18,159 @@ The analytic solution for the annual donation amount is given by
 
 where f(T) is the probability density of the singularity occurring at time T. Claude used this to derive the analytic solutions for Pareto and log-normal distributions.
 
-I had Claude write a second script to calculate results using Monte Carlo as a sanity check that the formulas are correct.
-
-"Planned" is the donation amount when planning all years in advance. It's normalized to sum to 100% and represents fraction of budget allocated to year t under a single ex-ante plan.
-
-"Conditional" is the amount to donate in year t conditioning on the fact that you've survived to year t (which changes your beliefs about timelines). It's computed by Monte Carlo: simulate T, then under the strategy "donate W_t / (T - t + 1) each year" (i.e. spread remaining wealth over remaining years if T were known), average the year-t donation over trials with T >= t. Each entry is "expected fraction of starting wealth donated in year t given survival to t" -- it does NOT sum to 100%.
+To customize the inputs (your timeline beliefs, distribution shape parameters, etc.), edit the CONFIGURATION block at the top of `if __name__ == "__main__":` below.
 
 See also the Claude chat that generated this script:
 https://claude.ai/share/5830f229-4dad-4427-aee8-30937746d468
 """
 
+# ============================================================
+# CONFIGURATION -- edit the values below, then run the script.
+# ============================================================
+
+# How many years to plan over. The script computes a donation amount for
+# each year from 1 to YEARS.
+YEARS = 30
+
+# Your best guess for the median time (in years from now) until the
+# singularity. "Median" means: you think there's a 50% chance the
+# singularity happens before this year, and 50% chance after.
+# Example: if you think there's a 50/50 chance of singularity by 2033,
+# and it's currently 2026, set this to 7.
+MEDIAN_TIMELINE = 7
+
+# ---- Pareto distribution settings ----
+# Pareto is a "heavy-tailed" distribution: it puts a lot of probability
+# on early years but also has a long tail allowing for very late years.
+
+# The earliest year the singularity could possibly happen, in your view.
+# Pareto assigns zero probability to anything before this year.
+PARETO_MIN_YEAR = 3
+
+# Controls how heavy the tail is. Lower alpha = heavier tail (more weight
+# on far-future outcomes). Typical values: 1.0 (very heavy) to 3.0 (light).
+# Must be > 1 for the mean to exist.
+PARETO_ALPHA = 1.5
+
+# ---- Log-normal distribution settings ----
+# Log-normal is symmetric on a log scale: equally likely to be 2x the
+# median as 1/2x the median.
+
+# Controls the spread. Larger sigma = more uncertainty.
+# sigma=1 means roughly: 68% chance the singularity is between
+# median/e and median*e (i.e., between ~2.6 and ~19 years for median=7).
+# Typical values: 0.5 (confident) to 1.5 (very uncertain).
+LOGNORMAL_SIGMA = 1.0
+
+# ============================================================
+# End of configuration. You shouldn't need to edit below here.
+# ============================================================
+
+
 import numpy as np
 from scipy import stats
 
 
-def donation_schedule(dist_obj, dist="pareto", years=30, n_mc=200_000, seed=0, **p):
+def donation_schedule(dist="pareto", years=30, **p):
     t = np.arange(1, years + 1, dtype=float)
     if dist == "pareto":
         a, tm = p["alpha"], p["t_min"]
-        planned = np.where(t >= tm, a * tm**a / ((a + 1) * t ** (a + 1)),
-                           a / ((a + 1) * tm))
+        d = np.where(t >= tm, a * tm**a / ((a + 1) * t ** (a + 1)),
+                     a / ((a + 1) * tm))
     elif dist == "lognormal":
         mu, s = p["mu"], p["sigma"]
-        planned = np.exp(-mu + s**2 / 2) * stats.norm.sf(
+        d = np.exp(-mu + s**2 / 2) * stats.norm.sf(
             (np.log(t) - (mu - s**2)) / s)
-
-    # MC for conditional: each trial donates W/(T-t+1) per year, where W is
-    # remaining wealth. Averaging year-t donations over trials with T >= t
-    # gives the expected donation in year t given survival to t.
-    rng = np.random.default_rng(seed)
-    T_samples = np.ceil(dist_obj.rvs(size=n_mc, random_state=rng)).astype(int)
-    T_samples = np.clip(T_samples, 1, None)
-    don_sum = np.zeros(years)
-    counts = np.zeros(years)
-    for T in T_samples:
-        W = 1.0
-        for tt in range(1, min(T, years) + 1):
-            d = W / (T - tt + 1)
-            don_sum[tt - 1] += d
-            counts[tt - 1] += 1
-            W -= d
-    cond = don_sum / np.maximum(counts, 1)
-    return t.astype(int), planned / planned.sum(), cond
+    return t.astype(int), d / d.sum()
 
 
-def plot(title, t, planned, cond, dist_obj, filename="donation_schedule.png"):
+def _per_year_pmf(dist_obj, t):
+    return dist_obj.cdf(t + 0.5) - dist_obj.cdf(t - 0.5)
+
+
+def _draw_panel(ax, t, planned, pmf, title, color):
+    ax.bar(t, planned * 100, color=color, alpha=0.85, width=0.8, label="Donation")
+    ax.plot(t, pmf * 100, color="black", linewidth=1.2,
+            label="Singularity probability")
+    ax.set(xlabel="Year", ylabel="% per year")
+    ax.set_title(title, fontsize=13)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.legend(frameon=False, fontsize=11)
+
+
+def plot_single(title, t, planned, dist_obj, filename, color="#2563eb"):
     import matplotlib.pyplot as plt
-
-    edges_lo, edges_hi = t - 0.5, t + 0.5
-    pmf = dist_obj.cdf(edges_hi) - dist_obj.cdf(edges_lo)
-    surv_lo = np.maximum(dist_obj.sf(edges_lo), 1e-15)
-    cond_pmf = pmf / surv_lo  # hazard given survival to t-0.5
-
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(12, 4.5))
-    panels = [
-        (a1, planned, pmf, "Planned (ex ante)", "#2563eb",
-        "% of budget", "Singularity probability"),
-        (a2, cond, cond_pmf, "Conditional (updating on survival)", "#dc2626",
-        "% of starting wealth (given survival)", "Singularity probability (given survival)"),
-    ]
-    for ax, data, overlay, label, color, ylabel, line_label in panels:
-        ax.bar(t, data * 100, color=color, alpha=0.85, width=0.8, label="Donation")
-        ax.plot(t, overlay * 100, color="black", linewidth=1,
-                marker="o", markersize=0, label=line_label)
-        ax.set(xlabel="Year", ylabel=ylabel)
-        ax.set_title(label, fontsize=13)
-        ax.spines[["top", "right"]].set_visible(False)
-        ax.legend(frameon=False, fontsize=11)
-    fig.suptitle(title, fontsize=15, fontweight="bold")
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    _draw_panel(ax, t, planned, _per_year_pmf(dist_obj, t), title, color)
     plt.tight_layout()
     plt.savefig(filename, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved {filename}")
+
+
+def plot_combined(scenarios, colors, filename):
+    import matplotlib.pyplot as plt
+    n = len(scenarios)
+    fig, axes = plt.subplots(1, n, figsize=(6 * n, 4.5))
+    if n == 1:
+        axes = [axes]
+    for ax, (title, t, planned, dist_obj), color in zip(axes, scenarios, colors):
+        _draw_panel(ax, t, planned, _per_year_pmf(dist_obj, t), title, color)
+    plt.tight_layout()
+    plt.savefig(filename, dpi=150, bbox_inches="tight")
+    plt.close(fig)
     print(f"  Saved {filename}")
 
 
 if __name__ == "__main__":
-    median_timeline = 7
-    alpha = 1.5
-    t_min = 3
-    sigma = 1
+    if MEDIAN_TIMELINE <= PARETO_MIN_YEAR:
+        raise ValueError(
+            f"MEDIAN_TIMELINE ({MEDIAN_TIMELINE}) must be greater than "
+            f"PARETO_MIN_YEAR ({PARETO_MIN_YEAR}). The median can't be earlier "
+            f"than the earliest possible year."
+        )
+    if PARETO_ALPHA <= 1:
+        raise ValueError(
+            f"PARETO_ALPHA ({PARETO_ALPHA}) must be greater than 1, otherwise "
+            f"the distribution has infinite mean and the math breaks."
+        )
+
     cases = [
-        (f"Pareto(median={median_timeline}, min={t_min}, α={alpha})", "pareto", dict(alpha=alpha, t_min=t_min, median=median_timeline)),
-        (f"LogNormal(median={median_timeline}, σ={sigma})", "lognormal", dict(mu=np.log(median_timeline), sigma=sigma)),
+        (f"Pareto(median={MEDIAN_TIMELINE}, min={PARETO_MIN_YEAR}, α={PARETO_ALPHA})",
+         "pareto", dict(alpha=PARETO_ALPHA, t_min=PARETO_MIN_YEAR, median=MEDIAN_TIMELINE)),
+        (f"LogNormal(median={MEDIAN_TIMELINE}, σ={LOGNORMAL_SIGMA})",
+         "lognormal", dict(mu=np.log(MEDIAN_TIMELINE), sigma=LOGNORMAL_SIGMA)),
     ]
+
+    scenarios = []
     for title, dist, params in cases:
         if dist == "pareto":
-            scale = (params["median"] - params["t_min"]) / (2**(1/params["alpha"]) - 1)
+            scale = (params["median"] - params["t_min"]) / (2 ** (1 / params["alpha"]) - 1)
             loc = params["t_min"] - scale
             d = stats.pareto(b=params["alpha"], loc=loc, scale=scale)
         elif dist == "lognormal":
             d = stats.lognorm(s=params["sigma"], scale=np.exp(params["mu"]))
 
-        # explicitly calculate median just to make sure it matches the
-        # median_timeline parameter
+        # sanity-check that median matches MEDIAN_TIMELINE
         mean, median = d.mean(), d.median()
         print(f"\n=== {title} (mean {mean:.1f}, median {median:.1f}) ===")
 
-        t, planned, cond = donation_schedule(d, dist, 30, **params)
-        for y, p, c in zip(t, planned, cond):
-            print(f"  Year {y:2d}:  planned {p*100:6.2f}%   conditional {c*100:6.2f}%")
-        plot(title, t, planned, cond, d, f"images/donation_schedule_{dist}.png")
+        t, planned = donation_schedule(dist, YEARS, **params)
+        scenarios.append((title, dist, t, planned, d))
+
+    # Side-by-side table
+    titles = [s[0] for s in scenarios]
+    years = scenarios[0][2]
+    print("\n" + " " * 8 + "  ".join(f"{tt:>20s}" for tt in titles))
+    for i, y in enumerate(years):
+        row = f"Year {y:2d}  " + "  ".join(
+            f"{s[3][i] * 100:19.2f}%" for s in scenarios
+        )
+        print(row)
+
+    colors = ["#2563eb", "#dc2626", "#059669"]
+    for (title, dist, t, planned, d), color in zip(scenarios, colors):
+        plot_single(title, t, planned, d,
+                    f"images/donation_schedule_{dist}.png", color)
+    plot_combined([(s[0], s[2], s[3], s[4]) for s in scenarios], colors,
+                  "images/donation_schedule_combined.png")
