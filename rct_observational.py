@@ -3,7 +3,7 @@
 rct_observational.py
 --------------------
 
-Author: Michael Dickens <michael@mdickens.me>
+Author: Michael Dickens <contact@mdickens.me>
 Created: 2024-11-23
 
 A method to combine RCT data with observational data.

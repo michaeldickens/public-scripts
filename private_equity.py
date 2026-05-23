@@ -3,7 +3,7 @@
 private_equity.py
 -----------------
 
-Author: Michael Dickens <michael@mdickens.me>
+Author: Michael Dickens <contact@mdickens.me>
 Created: 2022-08-09
 
 """

@@ -1,7 +1,7 @@
 """ulcer_sim.py
 ------------
 
-Author: Michael Dickens <michael@mdickens.me>
+Author: Michael Dickens <contact@mdickens.me>
 Created: 2023-09-13
 
 Generate simulated investment returns that target a particular return and ulcer

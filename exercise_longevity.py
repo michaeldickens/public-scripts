@@ -3,7 +3,7 @@
 exercise_longevity.py
 ---------------------
 
-Author: Michael Dickens <michael@mdickens.me>
+Author: Michael Dickens <contact@mdickens.me>
 Created: 2024-08-30
 
 Estimate how much exercise improves life expectancy.

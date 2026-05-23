@@ -1,7 +1,7 @@
 """fetch_doi.py
 -------------
 
-Author: Michael Dickens <michael@mdickens.me>
+Author: Michael Dickens <contact@mdickens.me>
 Created: 2024-08-23
 
 Look up an article citation given a DOI or URL. The DOI/URL is passed as a

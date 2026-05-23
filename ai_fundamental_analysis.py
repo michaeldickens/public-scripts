@@ -3,7 +3,7 @@
 ai_fundamental_analysis.py
 --------------------------
 
-Author: Michael Dickens <michael@mdickens.me>
+Author: Michael Dickens <contact@mdickens.me>
 Created: 2022-11-07
 
 Estimate the fundamental value of AI stocks given certain assumptions about the Singularity.

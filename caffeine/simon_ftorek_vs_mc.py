@@ -2,7 +2,7 @@
 simon_ftorek_vs_mc.py
 ---------------------
 
-Author: Michael Dickens <michael@mdickens.me>
+Author: Michael Dickens <contact@mdickens.me>
 Created: 2024-03-19
 
 Generate Monte Carlo samples for the caffeine effectiveness likelihood function

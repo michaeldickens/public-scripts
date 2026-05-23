@@ -3,7 +3,7 @@
 intervention_power_laws.py
 --------------------------
 
-Author: Michael Dickens <michael@mdickens.me>
+Author: Michael Dickens <contact@mdickens.me>
 Created: 2024-11-15
 
 Work with Disease Control Priorities 3 data.

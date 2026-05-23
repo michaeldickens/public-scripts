@@ -93,24 +93,51 @@ def donation_schedule(dist="pareto", years=30, **p):
     return t.astype(int), d / d.sum()
 
 
+def mixture_schedule(components, years=30):
+    # Each component is (dist_name, params_dict, weight). Weights are
+    # renormalized to sum to 1. Returns the per-year donation schedule
+    # where each component's normalized schedule contributes its weight
+    # share of the total budget. This is averaging the schedules, not
+    # computing the schedule of the mixture distribution -- the former
+    # is what "split the budget across worldviews" literally means.
+    weights = np.array([w for _, _, w in components], dtype=float)
+    weights /= weights.sum()
+    t = None
+    mixed = np.zeros(years)
+    for (dist, params, _), w in zip(components, weights):
+        t, planned = donation_schedule(dist, years, **params)
+        mixed += w * planned
+    return t, mixed
+
+
 def _per_year_pmf(dist_obj, t):
     return dist_obj.cdf(t + 0.5) - dist_obj.cdf(t - 0.5)
 
 
 def _draw_panel(ax, t, planned, pmf, title, color):
     ax.bar(t, planned * 100, color=color, alpha=0.85, width=0.8, label="Donation")
-    ax.plot(t, pmf * 100, color="black", linewidth=1.2, label="Singularity probability")
+    if pmf is not None:
+        ax.plot(t, pmf * 100, color="black", linewidth=1.2, label="Singularity probability")
     ax.set(xlabel="Year", ylabel="% per year")
     ax.set_title(title, fontsize=13)
     ax.spines[["top", "right"]].set_visible(False)
     ax.legend(frameon=False, fontsize=11)
 
 
-def plot_single(title, t, planned, dist_obj, filename, color="#2563eb"):
+def _mixture_pmf(components, t):
+    weights = np.array([w for _, _, w in components], dtype=float)
+    weights /= weights.sum()
+    pmf = np.zeros_like(t, dtype=float)
+    for (_, dist_obj, _), w in zip(components, weights):
+        pmf += w * _per_year_pmf(dist_obj, t)
+    return pmf
+
+
+def plot_single(title, t, planned, pmf, filename, color="#2563eb"):
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(7, 4.5))
-    _draw_panel(ax, t, planned, _per_year_pmf(dist_obj, t), title, color)
+    _draw_panel(ax, t, planned, pmf, title, color)
     plt.tight_layout()
     plt.savefig(filename, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -124,8 +151,8 @@ def plot_combined(scenarios, colors, filename):
     fig, axes = plt.subplots(1, n, figsize=(6 * n, 4.5))
     if n == 1:
         axes = [axes]
-    for ax, (title, t, planned, dist_obj), color in zip(axes, scenarios, colors):
-        _draw_panel(ax, t, planned, _per_year_pmf(dist_obj, t), title, color)
+    for ax, (title, t, planned, pmf), color in zip(axes, scenarios, colors):
+        _draw_panel(ax, t, planned, pmf, title, color)
     plt.tight_layout()
     plt.savefig(filename, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -146,6 +173,12 @@ if __name__ == "__main__":
         )
 
     cases = [
+        # Put other cases here, if desired
+        (
+            f"Pareto(median=7, min=1, α=1)",
+            "pareto",
+            dict(alpha=1, t_min=1, median=7),
+        ),
         (
             f"Pareto(median={MEDIAN_TIMELINE}, min={PARETO_MIN_YEAR}, α={PARETO_ALPHA})",
             "pareto",
@@ -159,6 +192,7 @@ if __name__ == "__main__":
     ]
 
     scenarios = []
+    mixture_components = []
     for title, dist, params in cases:
         if dist == "pareto":
             scale = (params["median"] - params["t_min"]) / (
@@ -174,19 +208,41 @@ if __name__ == "__main__":
         print(f"\n=== {title} (mean {mean:.1f}, median {median:.1f}) ===")
 
         t, planned = donation_schedule(dist, YEARS, **params)
-        scenarios.append((title, dist, t, planned, d))
+        scenarios.append((title, dist, t, planned, _per_year_pmf(d, t)))
+        mixture_components.append((dist, params, d))
+
+    # Equal-weight mixture across all configured distributions.
+    weights = [1.0 / len(mixture_components)] * len(mixture_components)
+    mix_for_schedule = [(dist, params, w) for (dist, params, _), w in zip(mixture_components, weights)]
+    mix_for_pmf = [(dist, d, w) for (dist, _, d), w in zip(mixture_components, weights)]
+    t_mix, planned_mix = mixture_schedule(mix_for_schedule, YEARS)
+    pmf_mix = _mixture_pmf(mix_for_pmf, t_mix)
+    scenarios.append((f"Mixture (equal weight, {len(mixture_components)} dists)", "mixture", t_mix, planned_mix, pmf_mix))
 
     # Side-by-side table
     titles = [s[0] for s in scenarios]
     years = scenarios[0][2]
-    print("\n" + " " * 8 + "  ".join(f"{tt:>20s}" for tt in titles))
+    print("\n" + " " * 8 + "  ".join(f"{tt:>30s}" for tt in titles))
     for i, y in enumerate(years):
-        row = f"Year {y:2d}  " + "  ".join(f"{s[3][i] * 100:19.2f}%" for s in scenarios)
+        row = f"Year {y:2d}  " + "  ".join(f"{s[3][i] * 100:29.2f}%" for s in scenarios)
         print(row)
 
-    colors = ["#2563eb", "#dc2626", "#059669"]
-    for (title, dist, t, planned, d), color in zip(scenarios, colors):
-        plot_single(title, t, planned, d, f"images/donation_schedule_{dist}.png", color)
+    colors = [
+        "#2563eb",  # blue
+        "#dc2626",  # red
+        "#059669",  # green
+        "#d97706",  # amber
+        "#7c3aed",  # violet
+        "#0891b2",  # cyan
+        "#db2777",  # pink
+        "#65a30d",  # lime
+        "#ea580c",  # orange
+        "#4f46e5",  # indigo
+        "#0d9488",  # teal
+        "#a16207",  # yellow-brown
+    ]
+    for (title, dist, t, planned, pmf), color in zip(scenarios, colors):
+        plot_single(title, t, planned, pmf, f"images/donation_schedule_{dist}.png", color)
     plot_combined(
         [(s[0], s[2], s[3], s[4]) for s in scenarios],
         colors,

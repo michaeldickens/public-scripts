@@ -3,7 +3,7 @@
 self_experiment.py
 -------------------
 
-Author: Michael Dickens <michael@mdickens.me>
+Author: Michael Dickens <contact@mdickens.me>
 Created: 2024-02-23
 
 Script for analyzing my caffeine self-experiment.

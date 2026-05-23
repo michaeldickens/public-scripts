@@ -645,3 +645,7 @@ computer seems to be behaving better now (?)
 ** [2025-06-30 Mon 06:25] 303
 ** [2025-06-30 Mon 08:11] 313 C
 ** [2025-06-30 Mon 08:12] 315 C
+** [2026-05-06 Wed 16:58] 235 C
+using peripheral vision
+** [2026-05-06 Wed 16:59] 234 C
+looking straight on

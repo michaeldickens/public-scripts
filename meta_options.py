@@ -2,7 +2,7 @@
 meta_options.py
 ---------------
 
-Author: Michael Dickens <michael@mdickens.me>
+Author: Michael Dickens <contact@mdickens.me>
 Created: 2021-11-26
 
 Monte Carlo simulation of the value of meta-options. Takes a different approach

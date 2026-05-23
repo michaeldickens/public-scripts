@@ -3,7 +3,7 @@
 variance.py
 -----------
 
-Author: Michael Dickens <michael@mdickens.me>
+Author: Michael Dickens <contact@mdickens.me>
 Created: 2022-03-22
 
 How does the true standard deviation of a growth rate compare to the estimated standard deviation?

@@ -2,7 +2,7 @@
 Module      : MissionHedging
 Description :
 
-Maintainer  : Michael Dickens <michael@mdickens.me>
+Maintainer  : Michael Dickens <contact@mdickens.me>
 Created     : 2022-02-21
 
 A quantitative model of the value of mission hedging.

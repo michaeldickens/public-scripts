@@ -4,7 +4,7 @@
 metaculus.py
 ------------
 
-Author: Michael Dickens <michael@mdickens.me>
+Author: Michael Dickens <contact@mdickens.me>
 Created: 2022-03-21
 
 """

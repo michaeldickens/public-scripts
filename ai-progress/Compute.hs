@@ -2,7 +2,7 @@
 Module      : Compute
 Description : Compute trends using the database from Jaime Sevilla et al.
 
-Maintainer  : Michael Dickens <michael@mdickens.me>
+Maintainer  : Michael Dickens <contact@mdickens.me>
 Created     : 2022-03-12
 
 -}
