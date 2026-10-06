@@ -1,9 +1,11 @@
-"""AI safety donation schedule calculator with uncertain AI timelines
+"""
+AI safety donation schedule calculator with uncertain AI timelines
 ==================================================================
 
 Created 2026-03-21.
 
-Primarily written by Claude Opus 4.6 and 4.7. Docstring by Michael Dickens.
+Primarily written by Claude Opus 4.6 and 4.7. This docstring was written by
+Michael Dickens.
 
 The basic concept: I want to donate an equal amount of money every year from
 now until the singularity. But I don't know when the singularity will happen.
@@ -23,8 +25,9 @@ The analytic solution for the annual donation amount is given by
     D(T) = integral from T to infinity of 1/t * f(t) dt
 
 where f(t) is the probability density of the singularity occurring at time t.
-Claude used this to derive the analytic solutions for Pareto and log-normal
-distributions.
+Claude used this to derive the analytic solution for the log-normal
+distribution. The Pareto case is integrated numerically, because the shifted
+Pareto needed to match a given median has no elementary closed form.
 
 To customize the inputs (your timeline beliefs and distribution shape
 parameters), edit the CONFIGURATION block below.
@@ -48,7 +51,7 @@ YEARS = 30
 # singularity happens before this year, and 50% chance after.
 # Example: if you think there's a 50/50 chance of singularity by 2033,
 # and it's currently 2026, set this to 7.
-MEDIAN_TIMELINE = 7
+MEDIAN_TIMELINE = 5
 
 # ---- Pareto distribution settings ----
 # Pareto is a "heavy-tailed" distribution: it puts a lot of probability
@@ -78,15 +81,29 @@ LOGNORMAL_SIGMA = 1.0
 # ============================================================
 
 
+import os
+
 import numpy as np
 from scipy import stats
+
+
+def make_dist(dist, **p):
+    if dist == "pareto":
+        # Shifted Pareto with support starting at t_min, scaled so its median
+        # equals p["median"].
+        scale = (p["median"] - p["t_min"]) / (2 ** (1 / p["alpha"]) - 1)
+        return stats.pareto(b=p["alpha"], loc=p["t_min"] - scale, scale=scale)
+    elif dist == "lognormal":
+        return stats.lognorm(s=p["sigma"], scale=np.exp(p["mu"]))
 
 
 def donation_schedule(dist="pareto", years=30, **p):
     t = np.arange(1, years + 1, dtype=float)
     if dist == "pareto":
-        a, tm = p["alpha"], p["t_min"]
-        d = np.where(t >= tm, a * tm**a / ((a + 1) * t ** (a + 1)), a / ((a + 1) * tm))
+        # D(T) = E[1/X; X > T]. The shifted Pareto has no elementary closed
+        # form for this, so integrate numerically.
+        d_obj = make_dist("pareto", **p)
+        d = np.array([d_obj.expect(lambda x: 1 / x, lb=max(ti, p["t_min"])) for ti in t])
     elif dist == "lognormal":
         mu, s = p["mu"], p["sigma"]
         d = np.exp(-mu + s**2 / 2) * stats.norm.sf((np.log(t) - (mu - s**2)) / s)
@@ -166,18 +183,16 @@ if __name__ == "__main__":
             f"PARETO_MIN_YEAR ({PARETO_MIN_YEAR}). The median can't be earlier "
             f"than the earliest possible year."
         )
-    if PARETO_ALPHA <= 1:
-        raise ValueError(
-            f"PARETO_ALPHA ({PARETO_ALPHA}) must be greater than 1, otherwise "
-            f"the distribution has infinite mean and the math breaks."
-        )
+    if PARETO_ALPHA <= 0:
+        raise ValueError(f"PARETO_ALPHA ({PARETO_ALPHA}) must be positive.")
+    os.makedirs("images", exist_ok=True)
 
     cases = [
         # Put other cases here, if desired
         (
-            f"Pareto(median=7, min=1, α=1)",
+            f"Pareto(median={MEDIAN_TIMELINE}, min=1, α=1)",
             "pareto",
-            dict(alpha=1, t_min=1, median=7),
+            dict(alpha=1, t_min=1, median=MEDIAN_TIMELINE),
         ),
         (
             f"Pareto(median={MEDIAN_TIMELINE}, min={PARETO_MIN_YEAR}, α={PARETO_ALPHA})",
@@ -194,14 +209,7 @@ if __name__ == "__main__":
     scenarios = []
     mixture_components = []
     for title, dist, params in cases:
-        if dist == "pareto":
-            scale = (params["median"] - params["t_min"]) / (
-                2 ** (1 / params["alpha"]) - 1
-            )
-            loc = params["t_min"] - scale
-            d = stats.pareto(b=params["alpha"], loc=loc, scale=scale)
-        elif dist == "lognormal":
-            d = stats.lognorm(s=params["sigma"], scale=np.exp(params["mu"]))
+        d = make_dist(dist, **params)
 
         # sanity-check that median matches MEDIAN_TIMELINE
         mean, median = d.mean(), d.median()
