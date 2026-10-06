@@ -39,21 +39,6 @@ def spending_schedule(years_until_point_of_no_return):
     return spending_per_year
 
 
-years_until_point_of_no_return = {
-    2: 0.1,
-    3: 0.1,
-    5: 0.3,
-    10: 0.25,
-    15: 0.05,
-    20: 0.05,
-    50: 0.15,
-}
-
-assert_sums_to_1(years_until_point_of_no_return)
-
-spending = spending_schedule(years_until_point_of_no_return)
-
-
 # Fit spending to a power law plus a lognormal bump: the lognormal captures the
 # near-term peak, the power law captures the long tail.
 def func_hybrid(x, c, m, a, mu, s):
@@ -67,10 +52,25 @@ def func_pareto(x, c, m, a, mu, s):
 def func_lognormal(x, c, m, a, mu, s):
     return a * np.exp(-((np.log(x) - mu) ** 2) / (2 * s**2)) / x
 
-"""Customizable parameters"""
+"""
+Customizable parameters
+"""
+years_until_point_of_no_return = {
+    # You can put whatever numbers you want in here, as long as the
+    # probabilities sum to 1.
+    2: 0.1,
+    3: 0.1,
+    5: 0.3,
+    10: 0.25,
+    15: 0.05,
+    20: 0.05,
+    50: 0.15,
+}
 func_to_fit = func_lognormal
 x_max = 10
 
+assert_sums_to_1(years_until_point_of_no_return)
+spending = spending_schedule(years_until_point_of_no_return)
 X = np.arange(100) + 0.5
 y = np.array(spending)
 current_year = 2026
@@ -94,7 +94,7 @@ elif func_to_fit == func_pareto:
     )
 elif func_to_fit == func_lognormal:
     print(
-        f"Best fit: {a} * exp(-(ln x - {mu:.2f})^2 / (2 * {s:.2f}^2)) / x"
+        f"Best fit: {a:.3f} * exp(-(ln x - {mu:.2f})^2 / (2 * {s:.2f}^2)) / x"
     )
 
 if func_to_fit != func_pareto:
@@ -170,6 +170,6 @@ def plot_schedule(schedule, schedule_label, curve_scale, title, filename=None):
 plot_schedule(y, "Spending schedule", 1, "Spending Schedule")
 plot_schedule(
     smoothed, "Smoothed spending schedule", fit_scale, "Spending Schedule (Smoothed)",
-    filename="images/ai_now_later_discrete.png"
+    filename="images/donation_schedule_discrete.png"
 )
 plt.show()
